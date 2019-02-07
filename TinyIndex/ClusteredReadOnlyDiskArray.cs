@@ -17,7 +17,7 @@ namespace TinyIndex
                     throw new ArgumentOutOfRangeException();
                 var buffer = new byte[header.RecordLength];
                 file.ReadAt(header.StartsAt + id*header.RecordLength, buffer, 0, buffer.Length);
-                return serializer.Deserialize(buffer, 0);
+                return serializer.Deserialize(buffer, 0, header.RecordLength);
             }
         }
 
@@ -37,7 +37,7 @@ namespace TinyIndex
             var elements = new List<T>();
             for (int i = 0; i < count; ++i)
             {
-                elements.Add(serializer.Deserialize(buffer, header.RecordLength * i));
+                elements.Add(serializer.Deserialize(buffer, header.RecordLength * i, header.RecordLength));
             }
 
             return elements;
@@ -57,7 +57,7 @@ namespace TinyIndex
                 for (long i = 0; i < header.RecordCount; ++i)
                 {
                     stream.ReadFully(buffer);
-                    yield return serializer.Deserialize(buffer, 0);
+                    yield return serializer.Deserialize(buffer, 0, header.RecordLength);
                 }
             }
         }

@@ -16,17 +16,20 @@ namespace TinyIndex.Tests
         [Test]
         public void Test()
         {
-            using (var db = Database.CreateOrOpen(@"D:\a\asdf.db").AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
+            var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
+            using (var db = Database.CreateOrOpen(path).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
             {
                 var intArr = db.Get<int>(0);
                 Assert.AreEqual(intArr[1], 2);
                 CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3 });
             }
+            File.Delete(path);
         }
 
         [Test]
         public void Test2()
         {
+            var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
             var actual = new[]
             {
                 new CompoundType {A = 42, B = "hello", C = 1000},
@@ -34,7 +37,7 @@ namespace TinyIndex.Tests
                 new CompoundType {A = 1337, B = "John Matrix", C = 1000},
                 new CompoundType {A = 1337, B = @"Major Alan ""Dutch"" Schaefer", C = 32},
             };
-            var db = Database.CreateOrOpen(@"D:\a\asdfg.db")
+            var db = Database.CreateOrOpen(path)
                 .AddArray(new CompoundTypeSerializer(), () => actual)
                 .AddArray(new IntSerializer(), () => new[] {1, 2, 3, 4, 5})
                 .Build();
@@ -47,6 +50,7 @@ namespace TinyIndex.Tests
                 Assert.AreEqual(intArr[1], 2);
                 CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3, 4, 5 });
             }
+            File.Delete(path);
         }
     }
 
@@ -95,11 +99,14 @@ namespace TinyIndex.Tests
         public long C { get; set; }
     }
 
-    public class CompoundTypeSerializer : ISerializer<CompoundType>
+    public class CompoundTypeSerializer : IConstSizeSerializer<CompoundType>
     {
         public int ElementSize => 4 + 8 + 32;
-        public CompoundType Deserialize(byte[] sourceBuffer, int sourceBufferOffset)
+        public CompoundType Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
         {
+            if (sourceBufferLength != ElementSize)
+                throw new InvalidDataException();
+
             var buff = new byte[ElementSize];
             Array.Copy(sourceBuffer, sourceBufferOffset, buff, 0, ElementSize);
             var result = new CompoundType();
@@ -114,8 +121,11 @@ namespace TinyIndex.Tests
             return result;
         }
 
-        public void Serialize(CompoundType element, byte[] destinationBuffer, int destinationBufferOffset)
+        public bool TrySerialize(CompoundType element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength)
         {
+            if (destinationBufferLength != ElementSize)
+                return false;
+
             var buff = new byte[ElementSize];
             using (var memoryStream = new MemoryStream(buff))
             using (var binaryWriter = new BinaryWriter(memoryStream))
@@ -126,22 +136,28 @@ namespace TinyIndex.Tests
             }
 
             Array.Copy(buff, 0, destinationBuffer, destinationBufferOffset, ElementSize);
+            return true;
         }
     }
 
-    public class IntSerializer : ISerializer<int>
+    public class IntSerializer : IConstSizeSerializer<int>
     {
         public int ElementSize => sizeof(int);
 
-        public int Deserialize(byte[] sourceBuffer, int sourceBufferOffset)
+        public int Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
         {
+            if(sourceBufferLength != ElementSize)
+                throw new InvalidDataException();
             return BitConverter.ToInt32(sourceBuffer, sourceBufferOffset);
         }
 
-        public void Serialize(int element, byte[] destinationBuffer, int destinationBufferOffset)
+        public bool TrySerialize(int element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength)
         {
+            if (destinationBufferLength != ElementSize)
+                return false;
             var bytes = BitConverter.GetBytes(element);
             Array.Copy(bytes, 0, destinationBuffer, destinationBufferOffset, ElementSize);
+            return true;
         }
     }
 

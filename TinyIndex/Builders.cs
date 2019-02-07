@@ -32,7 +32,7 @@ namespace TinyIndex
             }
         }
 
-        public DatabaseOpeningBuilder AddArray<T>(ISerializer<T> serializer)
+        public DatabaseOpeningBuilder AddArray<T>(IConstSizeSerializer<T> serializer)
         {
             try
             {
@@ -84,7 +84,7 @@ namespace TinyIndex
 
     public abstract class DatabaseBuilder
     {
-        public abstract DatabaseBuilder AddArray<T>(ISerializer<T> serializer, Func<IEnumerable<T>> elements);
+        public abstract DatabaseBuilder AddArray<T>(IConstSizeSerializer<T> serializer, Func<IEnumerable<T>> elements);
 
         internal abstract Database Finish();
 
@@ -115,7 +115,7 @@ namespace TinyIndex
             return new Database(() => Database.OpenReadonly(path), headers);
         }
 
-        public override DatabaseBuilder AddArray<T>(ISerializer<T> serializer, Func<IEnumerable<T>> elements)
+        public override DatabaseBuilder AddArray<T>(IConstSizeSerializer<T> serializer, Func<IEnumerable<T>> elements)
         {
             actions.Add(stream =>
             {
@@ -128,7 +128,7 @@ namespace TinyIndex
                 long elementCount = 0;
                 foreach (var element in elements())
                 {
-                    serializer.Serialize(element, buffer, 0);
+                    serializer.TrySerialize(element, buffer, 0, elementLength);
                     stream.Write(buffer);
                     elementCount++;
                 }
@@ -166,7 +166,7 @@ namespace TinyIndex
             this.builder = new DatabaseOpeningBuilder(stream, streamFactory);
         }
 
-        public override DatabaseBuilder AddArray<T>(ISerializer<T> serializer, Func<IEnumerable<T>> elements)
+        public override DatabaseBuilder AddArray<T>(IConstSizeSerializer<T> serializer, Func<IEnumerable<T>> elements)
         {
             builder.AddArray(serializer);
             return this;
