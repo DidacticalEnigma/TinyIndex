@@ -8,6 +8,21 @@ namespace TinyIndex
         private readonly ArrayHeader header;
         private readonly RandomAccessFile file;
         private readonly ISerializer<T> serializer;
+        private readonly int recordLength;
+
+        internal static int GetRecordLength(ArrayHeader header)
+        {
+            var len = header.OverallLength / header.RecordCount;
+            if (len > int.MaxValue || len < 1)
+                throw new InvalidOperationException();
+            return (int)len;
+        }
+
+        private T ReadRecordWithId(long id, ref byte[] buffer)
+        {
+            file.ReadAt(header.StartsAt + id * recordLength, buffer, 0, recordLength);
+            return serializer.Deserialize(buffer, 0, recordLength);
+        }
 
         public T this[long id]
         {
@@ -15,9 +30,8 @@ namespace TinyIndex
             {
                 if (id < 0 || id >= header.RecordCount)
                     throw new ArgumentOutOfRangeException();
-                var buffer = new byte[header.RecordLength];
-                file.ReadAt(header.StartsAt + id*header.RecordLength, buffer, 0, buffer.Length);
-                return serializer.Deserialize(buffer, 0, header.RecordLength);
+                var buffer = new byte[recordLength];
+                return ReadRecordWithId(id, ref buffer);
             }
         }
 
@@ -32,32 +46,37 @@ namespace TinyIndex
 
             var count = idEnd - idStart;
 
-            var buffer = new byte[count * header.RecordLength];
-            file.ReadAt(header.StartsAt + idStart * header.RecordLength, buffer, 0, buffer.Length);
+            var buffer = new byte[count * recordLength];
+            file.ReadAt(header.StartsAt + idStart * recordLength, buffer, 0, buffer.Length);
             var elements = new List<T>();
             for (int i = 0; i < count; ++i)
             {
-                elements.Add(serializer.Deserialize(buffer, header.RecordLength * i, header.RecordLength));
+                elements.Add(serializer.Deserialize(buffer, recordLength * i, recordLength));
             }
 
             return elements;
         }
 
         // this relies the collection is sorted on TKey
-        public (T element, long id) BinarySearch<TKey>(Func<T, TKey> selector)
+        public (T element, long id) BinarySearch<TKey>(TKey lookupKey, Func<T, TKey> selector, IComparer<TKey> comparer)
         {
-            throw new NotImplementedException();
+            return Utility.BinarySearch(
+                ReadRecordWithId,
+                header.RecordCount,
+                lookupKey,
+                selector,
+                comparer);
         }
 
         public IEnumerable<T> LinearScan()
         {
             using (var stream = file.CreateStreamAt(header.StartsAt))
             {
-                var buffer = new byte[header.RecordLength];
+                var buffer = new byte[recordLength];
                 for (long i = 0; i < header.RecordCount; ++i)
                 {
                     stream.ReadFully(buffer);
-                    yield return serializer.Deserialize(buffer, 0, header.RecordLength);
+                    yield return serializer.Deserialize(buffer, 0, recordLength);
                 }
             }
         }
@@ -67,6 +86,7 @@ namespace TinyIndex
             this.header = header;
             this.file = file;
             this.serializer = serializer;
+            this.recordLength = GetRecordLength(header);
         }
     }
 }

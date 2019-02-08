@@ -17,6 +17,7 @@ namespace TinyIndex.Tests
         public void Test()
         {
             var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
+            File.Delete(path);
             using (var db = Database.CreateOrOpen(path).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
             {
                 var intArr = db.Get<int>(0);
@@ -30,6 +31,7 @@ namespace TinyIndex.Tests
         public void Test2()
         {
             var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
+            File.Delete(path);
             var actual = new[]
             {
                 new CompoundType {A = 42, B = "hello", C = 1000},
@@ -51,6 +53,90 @@ namespace TinyIndex.Tests
                 CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3, 4, 5 });
             }
             File.Delete(path);
+        }
+
+        [Test]
+        public void Test3()
+        {
+            var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
+            File.Delete(path);
+            var actual = new[]
+            {
+                "hello",
+                "super long text abcdefghijklmnopqrstuvwxyz",
+
+            };
+            var db = Database.CreateOrOpen(path)
+                .AddIndirectArray(new StringSerializer(), () => actual)
+                .Build();
+            using (db)
+            {
+                var compArr = db.Get<string>(0);
+                Assert.AreEqual("hello", compArr[0]);
+                CollectionAssert.AreEqual(compArr.LinearScan(), actual);
+                Assert.AreEqual("super long text abcdefghijklmnopqrstuvwxyz", compArr[1]);
+            }
+            File.Delete(path);
+        }
+
+        [Test]
+        public void Test4()
+        {
+            var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
+            File.Delete(path);
+            var random = new Random(42);
+            var list = new List<int>();
+            for (int i = 0; i < 500000; ++i)
+            {
+                list.Add(random.Next(0, 1000000000));
+            }
+            list.Sort();
+            var db = Database.CreateOrOpen(path)
+                .AddArray(new IntSerializer(), () => list)
+                .Build();
+            using (db)
+            {
+                var intArr = db.Get<int>(0);
+                Assert.AreEqual(0, intArr.BinarySearch(1739, x => x).id);
+                Assert.AreEqual(23, intArr.BinarySearch(46639, x => x).id);
+                Assert.AreEqual(22, intArr.BinarySearch(43700, x => x).id);
+                Assert.AreEqual(list.Count - 1, intArr.BinarySearch(999998544, x => x).id);
+                CollectionAssert.AreEqual(intArr.LinearScan(), list);
+            }
+            File.Delete(path);
+        }
+    }
+
+    public class StringSerializer : ISerializer<string>
+    {
+        public string Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+        {
+            var buff = new byte[sourceBufferLength];
+            Array.Copy(sourceBuffer, sourceBufferOffset, buff, 0, sourceBufferLength);
+            using (var memoryStream = new MemoryStream(buff))
+            using (var binaryReader = new BinaryReader(memoryStream))
+            {
+                return binaryReader.ReadString();
+            }
+        }
+
+        public bool TrySerialize(string element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength,
+            out int actualSize)
+        {
+            using (var memoryStream = new MemoryStream())
+            using (var binaryWriter = new BinaryWriter(memoryStream))
+            {
+                binaryWriter.Write(element);
+                actualSize = (int)memoryStream.Length;
+                if (memoryStream.Length <= destinationBufferLength)
+                {
+                    var source = memoryStream.ToArray();
+                    Array.Copy(source, 0, destinationBuffer, destinationBufferOffset, actualSize);
+                    return true;
+                }
+
+                return false;
+            }
         }
     }
 
@@ -105,7 +191,9 @@ namespace TinyIndex.Tests
         public CompoundType Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
         {
             if (sourceBufferLength != ElementSize)
+            {
                 throw new InvalidDataException();
+            }
 
             var buff = new byte[ElementSize];
             Array.Copy(sourceBuffer, sourceBufferOffset, buff, 0, ElementSize);
@@ -117,14 +205,16 @@ namespace TinyIndex.Tests
                 result.B = binaryReader.ReadPaddedUtf8String(32);
                 result.C = binaryReader.ReadInt64();
             }
-
             return result;
         }
 
-        public bool TrySerialize(CompoundType element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength)
+        public bool TrySerialize(CompoundType element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength, out int actualSize)
         {
             if (destinationBufferLength != ElementSize)
+            {
+                actualSize = 0;
                 return false;
+            }
 
             var buff = new byte[ElementSize];
             using (var memoryStream = new MemoryStream(buff))
@@ -136,6 +226,7 @@ namespace TinyIndex.Tests
             }
 
             Array.Copy(buff, 0, destinationBuffer, destinationBufferOffset, ElementSize);
+            actualSize = ElementSize;
             return true;
         }
     }
@@ -151,12 +242,17 @@ namespace TinyIndex.Tests
             return BitConverter.ToInt32(sourceBuffer, sourceBufferOffset);
         }
 
-        public bool TrySerialize(int element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength)
+        public bool TrySerialize(int element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength, out int actualSize)
         {
             if (destinationBufferLength != ElementSize)
+            {
+                actualSize = 0;
                 return false;
+            }
+
             var bytes = BitConverter.GetBytes(element);
             Array.Copy(bytes, 0, destinationBuffer, destinationBufferOffset, ElementSize);
+            actualSize = ElementSize;
             return true;
         }
     }

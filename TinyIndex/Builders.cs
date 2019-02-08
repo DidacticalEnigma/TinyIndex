@@ -37,7 +37,26 @@ namespace TinyIndex
             try
             {
                 var header = ReadNextHeader(serializer);
-                if (serializer.ElementSize != header.RecordLength)
+                if (serializer.ElementSize != ClusteredReadOnlyDiskArray<T>.GetRecordLength(header))
+                    throw new InvalidDataException();
+                if(header.Type != 1)
+                    throw new InvalidDataException();
+                headers.Add(header);
+                return this;
+            }
+            catch
+            {
+                stream.Dispose();
+                throw;
+            }
+        }
+
+        public DatabaseOpeningBuilder AddIndirectArray<T>(ISerializer<T> serializer)
+        {
+            try
+            {
+                var header = ReadNextHeader(serializer);
+                if (header.Type != 2)
                     throw new InvalidDataException();
                 headers.Add(header);
                 return this;
@@ -58,6 +77,8 @@ namespace TinyIndex
             header.RecordCount = BitConverter.ToInt64(buffer, 0);
             stream.ReadFully(buffer);
             header.OverallLength = BitConverter.ToInt64(buffer, 0);
+            stream.ReadFully(buffer);
+            header.Type = BitConverter.ToInt64(buffer, 0);
             // TODO: validate header
             var headerBytes = header.AsBytes();
             header.Serializer = serializer;
@@ -86,6 +107,8 @@ namespace TinyIndex
     {
         public abstract DatabaseBuilder AddArray<T>(IConstSizeSerializer<T> serializer, Func<IEnumerable<T>> elements);
 
+        public abstract DatabaseBuilder AddIndirectArray<T>(ISerializer<T> serializer, Func<IEnumerable<T>> elements);
+
         internal abstract Database Finish();
 
         public Database Build()
@@ -99,6 +122,65 @@ namespace TinyIndex
         private readonly string path;
 
         private List<Func<Stream, ArrayHeader>> actions = new List<Func<Stream, ArrayHeader>>();
+
+        public override DatabaseBuilder AddIndirectArray<T>(ISerializer<T> serializer, Func<IEnumerable<T>> elements)
+        {
+            actions.Add(stream =>
+            {
+                var headerPosition = stream.Position;
+                // write a dummy header
+                var dummyHeaderBytes = new ArrayHeader().AsBytes();
+                stream.Write(dummyHeaderBytes);
+
+                var pointersArrayOffsetPosition = stream.Position;
+                stream.Write(BitConverter.GetBytes(0L));
+
+                var dataStartPosition = stream.Position;
+                var buffer = new byte[0];
+                long elementCount = 0;
+                // TODO: less lazy way
+                var offsetList = new List<long>();
+                foreach (var element in elements())
+                {
+                    int actualLength;
+                    while (!serializer.TrySerialize(element, buffer, 0, buffer.Length, out actualLength))
+                    {
+                        Utility.Reallocate(ref buffer);
+                    }
+                    offsetList.Add(stream.Position - dataStartPosition);
+                    stream.Write(BitConverter.GetBytes(actualLength));
+                    stream.Write(buffer, 0, actualLength);
+                    elementCount++;
+                }
+
+                var pointerArrayPosition = stream.Position;
+                stream.Position += elementCount * sizeof(long);
+
+                var pastEndPosition = stream.Position;
+                stream.Seek(headerPosition, SeekOrigin.Begin);
+                var arrayHeader = new ArrayHeader
+                {
+                    OverallLength = pastEndPosition - pointersArrayOffsetPosition,
+                    RecordCount = elementCount,
+                    StartsAt = pointersArrayOffsetPosition,
+                    EndsAt = pastEndPosition,
+                    Type = 2,
+                    Serializer = serializer
+                };
+                stream.Write(arrayHeader.AsBytes());
+                stream.Write(BitConverter.GetBytes(pointerArrayPosition - pointersArrayOffsetPosition));
+
+                stream.Seek(pointerArrayPosition, SeekOrigin.Begin);
+                foreach (var off in offsetList)
+                {
+                    stream.Write(BitConverter.GetBytes(off));
+                }
+                stream.Seek(pastEndPosition, SeekOrigin.Begin);
+                return arrayHeader;
+            });
+
+            return this;
+        }
 
         internal override Database Finish()
         {
@@ -128,7 +210,7 @@ namespace TinyIndex
                 long elementCount = 0;
                 foreach (var element in elements())
                 {
-                    serializer.TrySerialize(element, buffer, 0, elementLength);
+                    serializer.TrySerialize(element, buffer, 0, elementLength, out _);
                     stream.Write(buffer);
                     elementCount++;
                 }
@@ -141,6 +223,7 @@ namespace TinyIndex
                     RecordCount = elementCount,
                     StartsAt = headerPosition + dummyHeaderBytes.Length,
                     EndsAt = pastEndPosition,
+                    Type = 1,
                     Serializer = serializer
                 };
                 stream.Write(arrayHeader.AsBytes());
@@ -169,6 +252,12 @@ namespace TinyIndex
         public override DatabaseBuilder AddArray<T>(IConstSizeSerializer<T> serializer, Func<IEnumerable<T>> elements)
         {
             builder.AddArray(serializer);
+            return this;
+        }
+
+        public override DatabaseBuilder AddIndirectArray<T>(ISerializer<T> serializer, Func<IEnumerable<T>> elements)
+        {
+            builder.AddIndirectArray(serializer);
             return this;
         }
 

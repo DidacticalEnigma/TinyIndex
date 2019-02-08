@@ -9,10 +9,18 @@ namespace TinyIndex
         private readonly IReadOnlyList<ArrayHeader> headers;
         private readonly RandomAccessFile file;
 
-        public ClusteredReadOnlyDiskArray<T> Get<T>(int collectionNumber)
+        public IReadOnlyDiskArray<T> Get<T>(int collectionNumber)
         {
             var header = headers[collectionNumber];
-            return new ClusteredReadOnlyDiskArray<T>(header, file, (ISerializer<T>)header.Serializer);
+            switch (header.Type)
+            {
+                case 1:
+                    return new ClusteredReadOnlyDiskArray<T>(header, file, (IConstSizeSerializer<T>) header.Serializer);
+                case 2:
+                    return new NonClusteredReadOnlyDiskArray<T>(header, file, (ISerializer<T>)header.Serializer);
+                default:
+                    throw new InvalidDataException();
+            }
         }
 
         public static DatabaseOpeningBuilder Open(string path)

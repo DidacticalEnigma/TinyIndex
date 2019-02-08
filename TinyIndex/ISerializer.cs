@@ -10,6 +10,6 @@
         // the method should return false. in which case the caller can't assume anything
         // about the content of destinationBuffer[destinationBufferOffset .. destinationBufferOffset + destinationBufferLength]
         // the serialization shall not fail for any other reason
-        bool TrySerialize(T element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength);
+        bool TrySerialize(T element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength, out int actualSize);
     }
 }
