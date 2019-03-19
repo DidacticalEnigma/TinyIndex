@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Text;
 
 namespace TinyIndex
@@ -500,6 +501,52 @@ namespace TinyIndex
         public static ISerializer<TTo> Mapping<TFrom, TTo>(this ISerializer<TFrom> serializer, Func<TFrom, TTo> toFunc, Func<TTo, TFrom> fromFunc)
         {
             return new MappingSerializer<TFrom,TTo>(serializer, toFunc, fromFunc);
+        }
+
+
+        private class DotNetBinarySerializer<T> : ISerializer<T>
+        {
+            private readonly IFormatter formatter;
+
+            public T Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+            {
+                using (var memoryStream = new MemoryStream(sourceBuffer, sourceBufferOffset, sourceBufferLength))
+                {
+                    return (T)formatter.Deserialize(memoryStream);
+                }
+            }
+
+            public bool TrySerialize(T element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength,
+                out int actualSize)
+            {
+                using (var memoryStream = new MemoryStream(destinationBuffer, destinationBufferOffset, destinationBufferLength, writable: true))
+                {
+                    try
+                    {
+                        formatter.Serialize(memoryStream, element);
+                        actualSize = (int)memoryStream.Position;
+                        return true;
+                    }
+                    catch (NotSupportedException)
+                    {
+                        actualSize = 0;
+                        return false;
+                    }
+                }
+            }
+
+            public DotNetBinarySerializer(IFormatter formatter)
+            {
+                this.formatter = formatter;
+            }
+        }
+
+        // uses the .NET built-in serialization API
+        // all caveats described in https://docs.microsoft.com/en-us/dotnet/standard/serialization/binary-serialization
+        // apply, in particular the warning to not use this for deserializing untrusted data
+        public static ISerializer<T> DotNetBinary<T>(IFormatter formatter)
+        {
+            return new DotNetBinarySerializer<T>(formatter);
         }
     }
 }

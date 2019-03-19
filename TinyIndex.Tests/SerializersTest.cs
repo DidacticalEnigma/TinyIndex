@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework;
@@ -108,8 +109,31 @@ namespace TinyIndex.Tests
                 }
             }
         }
+
+        [Test]
+        public void Binary()
+        {
+            var original = new ComplexComposite()
+            {
+                A = 42,
+                B = "John Rambo",
+                C = -1,
+                D = new FileShare[] { FileShare.Delete, FileShare.Read }
+            };
+            // For the purposes of this test assume a buffer large enough
+            var binarySerializer = Serializer.DotNetBinary<ComplexComposite>(new BinaryFormatter());
+            var buffer = new byte[16384];
+            binarySerializer.TrySerialize(original, buffer, 0, buffer.Length, out var actualSize);
+            Assert.IsTrue(actualSize < buffer.Length);
+            var resurrected = binarySerializer.Deserialize(buffer, 0, actualSize);
+            Assert.AreEqual(original.A, resurrected.A);
+            Assert.AreEqual(original.B, resurrected.B);
+            Assert.AreEqual(original.C, resurrected.C);
+            CollectionAssert.AreEqual(original.D, resurrected.D);
+        }
     }
 
+    [Serializable]
     public class ComplexComposite
     {
         public int A { get; set; }
