@@ -89,14 +89,14 @@ namespace TinyIndex.Tests
         [Test]
         public void StringSerializer()
         {
-            var buffer = new byte[16384];
             var original = "織田　信長";
-            var stringSerializer = Serializer.ForStringAsUTF8();
             var expectedByteLength = Encoding.UTF8.GetByteCount(original);
-            for (int i = 0; i < expectedByteLength + 3; ++i)
+            var buffer = new byte[expectedByteLength + 2];
+            var stringSerializer = Serializer.ForStringAsUTF8();
+            for (int i = 0; i < expectedByteLength + 5; ++i)
             {
                 var success = stringSerializer.TrySerialize(original, buffer, 0, i, out var actualSize);
-                if (i < expectedByteLength)
+                if (i < expectedByteLength || buffer.Length < i)
                 {
                     Assert.AreEqual(false, success);
                     Assert.AreEqual(0, actualSize);
