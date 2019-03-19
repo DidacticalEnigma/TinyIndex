@@ -255,12 +255,15 @@ namespace TinyIndex
             var headers = new List<ArrayHeader>();
             using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                stream.Write(BitConverter.GetBytes(1L));
+                stream.Write(BitConverter.GetBytes(0L));
                 stream.Write(versionCheck.ToByteArray());
                 foreach (var action in actions)
                 {
                     headers.Add(action(stream, buffer));
                 }
+
+                stream.Seek(0, SeekOrigin.Begin);
+                stream.Write(BitConverter.GetBytes(1L));
             }
 
             return new Database(() => Database.OpenReadonly(path), headers);
