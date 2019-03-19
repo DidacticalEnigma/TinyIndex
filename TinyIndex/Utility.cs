@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography.X509Certificates;
 
 namespace TinyIndex
 {
@@ -55,6 +56,46 @@ namespace TinyIndex
             Array.Resize(ref buffer, newSize);
         }
 
+        internal static (T elementStart, long start, long endExclusive) EqualRange<T, TKey>(
+            LookupFunc<T> lookup, 
+            long len,
+            TKey lookupKey,
+            Func<T, TKey> selector,
+            IComparer<TKey> comparer)
+        {
+            long left = 0;
+            long leftMost = left;
+            long right = len - 1;
+            long rightMost = right;
+            T record = default(T);
+            var buffer = new byte[sizeof(long)];
+            while (left < right)
+            {
+                var m = GetMidpoint(left, right);
+                record = lookup(m, ref buffer);
+                var recordKey = selector(record);
+                var result = comparer.Compare(recordKey, lookupKey);
+                if (result < 0)
+                {
+                    left = m + 1;
+                    leftMost = m + 1;
+                }
+
+                if (result <= 0)
+                {
+                    left = m + 1;
+                    rightMost = m + 1;
+                }
+
+                if (result > 0)
+                {
+                    right = m - 1;
+                }
+            }
+
+            return (record, leftMost, rightMost - 1);
+        }
+
         public static (T element, long id) BinarySearch<T, TKey>(LookupFunc<T> lookup, long len, TKey lookupKey, Func<T, TKey> selector, IComparer<TKey> comparer)
         {
             long left = 0;
@@ -79,11 +120,12 @@ namespace TinyIndex
             }
 
             return (default(T), -1);
+        }
 
-            long GetMidpoint(long l, long r)
-            {
-                return (left + right) / 2;
-            }
+        private static long GetMidpoint(long l, long r)
+        {
+            // To replace if you suffer overflows
+            return (l + r) / 2;
         }
     }
 
