@@ -90,9 +90,8 @@ namespace TinyIndex.Tests
             {
                 list.Add(random.Next(0, 1000000000));
             }
-            list.Sort();
             var db = Database.CreateOrOpen(path)
-                .AddArray(new IntSerializer(), () => list)
+                .AddArray(new IntSerializer(), () => list, Comparer<int>.Default)
                 .Build();
             using (db)
             {
@@ -101,7 +100,7 @@ namespace TinyIndex.Tests
                 Assert.AreEqual(23, intArr.BinarySearch(46639, x => x).id);
                 Assert.AreEqual(22, intArr.BinarySearch(43700, x => x).id);
                 Assert.AreEqual(list.Count - 1, intArr.BinarySearch(999998544, x => x).id);
-                CollectionAssert.AreEqual(intArr.LinearScan(), list);
+                CollectionAssert.AreEqual(intArr.LinearScan(), list.OrderBy(x => x));
             }
             File.Delete(path);
         }

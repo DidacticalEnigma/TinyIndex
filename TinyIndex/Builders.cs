@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -22,7 +23,7 @@ namespace TinyIndex
             {
                 byte[] buffer = new byte[sizeof(long)];
                 stream.ReadFully(buffer);
-                if(BitConverter.ToInt64(buffer, 0) != 1)
+                if (BitConverter.ToInt64(buffer, 0) != 1)
                     throw new InvalidDataException();
             }
             catch
@@ -39,7 +40,7 @@ namespace TinyIndex
                 var header = ReadNextHeader(serializer);
                 if (serializer.ElementSize != ClusteredReadOnlyDiskArray<T>.GetRecordLength(header))
                     throw new InvalidDataException();
-                if(header.Type != 1)
+                if (header.Type != 1)
                     throw new InvalidDataException();
                 headers.Add(header);
                 return this;
@@ -105,9 +106,63 @@ namespace TinyIndex
 
     public abstract class DatabaseBuilder
     {
-        public abstract DatabaseBuilder AddArray<T>(IConstSizeSerializer<T> serializer, Func<IEnumerable<T>> elements);
+        public DatabaseBuilder AddArray<T>(
+            IConstSizeSerializer<T> serializer,
+            Func<IEnumerable<T>> elements)
+        {
+            return AddArray(serializer, elements, x => x, null);
+        }
 
-        public abstract DatabaseBuilder AddIndirectArray<T>(ISerializer<T> serializer, Func<IEnumerable<T>> elements);
+        public DatabaseBuilder AddArray<T, TKey>(
+            IConstSizeSerializer<T> serializer,
+            Func<IEnumerable<T>> elements,
+            Func<T, TKey> keySelector)
+        {
+            return AddArray(serializer, elements, keySelector, Comparer<TKey>.Default);
+        }
+
+        public DatabaseBuilder AddArray<T>(
+            IConstSizeSerializer<T> serializer,
+            Func<IEnumerable<T>> elements,
+            IComparer<T> comparer)
+        {
+            return AddArray(serializer, elements, x => x, comparer);
+        }
+
+        public abstract DatabaseBuilder AddArray<T, TKey>(
+            IConstSizeSerializer<T> serializer,
+            Func<IEnumerable<T>> elements,
+            Func<T, TKey> keySelector,
+            IComparer<TKey> comparer);
+
+        public DatabaseBuilder AddIndirectArray<T>(
+            ISerializer<T> serializer,
+            Func<IEnumerable<T>> elements)
+        {
+            return AddIndirectArray(serializer, elements, x => x, null);
+        }
+
+        public DatabaseBuilder AddIndirectArray<T>(
+            ISerializer<T> serializer,
+            Func<IEnumerable<T>> elements,
+            IComparer<T> comparer)
+        {
+            return AddIndirectArray(serializer, elements, x => x, comparer);
+        }
+
+        public DatabaseBuilder AddIndirectArray<T, TKey>(
+            ISerializer<T> serializer,
+            Func<IEnumerable<T>> elements,
+            Func<T, TKey> keySelector)
+        {
+            return AddIndirectArray(serializer, elements, keySelector, Comparer<TKey>.Default);
+        }
+
+        public abstract DatabaseBuilder AddIndirectArray<T, TKey>(
+            ISerializer<T> serializer,
+            Func<IEnumerable<T>> elements,
+            Func<T, TKey> selector,
+            IComparer<TKey> comparer);
 
         internal abstract Database Finish();
 
@@ -123,7 +178,11 @@ namespace TinyIndex
 
         private List<Func<Stream, ArrayHeader>> actions = new List<Func<Stream, ArrayHeader>>();
 
-        public override DatabaseBuilder AddIndirectArray<T>(ISerializer<T> serializer, Func<IEnumerable<T>> elements)
+        public override DatabaseBuilder AddIndirectArray<T, TKey>(
+            ISerializer<T> serializer,
+            Func<IEnumerable<T>> elements,
+            Func<T, TKey> selector,
+            IComparer<TKey> comparer)
         {
             actions.Add(stream =>
             {
@@ -140,7 +199,10 @@ namespace TinyIndex
                 long elementCount = 0;
                 // TODO: less lazy way
                 var offsetList = new List<long>();
-                foreach (var element in elements())
+                var elementsEnumerable = elements();
+                if (comparer != null)
+                    elementsEnumerable = elementsEnumerable.OrderBy(selector, comparer);
+                foreach (var element in elementsEnumerable)
                 {
                     int actualLength;
                     while (!serializer.TrySerialize(element, buffer, 0, buffer.Length, out actualLength))
@@ -197,7 +259,11 @@ namespace TinyIndex
             return new Database(() => Database.OpenReadonly(path), headers);
         }
 
-        public override DatabaseBuilder AddArray<T>(IConstSizeSerializer<T> serializer, Func<IEnumerable<T>> elements)
+        public override DatabaseBuilder AddArray<T, TKey>(
+            IConstSizeSerializer<T> serializer,
+            Func<IEnumerable<T>> elements,
+            Func<T, TKey> selector,
+            IComparer<TKey> comparer)
         {
             actions.Add(stream =>
             {
@@ -208,7 +274,10 @@ namespace TinyIndex
                 var elementLength = serializer.ElementSize;
                 var buffer = new byte[elementLength];
                 long elementCount = 0;
-                foreach (var element in elements())
+                var elementsEnumerable = elements();
+                if (comparer != null)
+                    elementsEnumerable = elementsEnumerable.OrderBy(selector, comparer);
+                foreach (var element in elementsEnumerable)
                 {
                     serializer.TrySerialize(element, buffer, 0, elementLength, out _);
                     stream.Write(buffer);
@@ -249,13 +318,21 @@ namespace TinyIndex
             this.builder = new DatabaseOpeningBuilder(stream, streamFactory);
         }
 
-        public override DatabaseBuilder AddArray<T>(IConstSizeSerializer<T> serializer, Func<IEnumerable<T>> elements)
+        public override DatabaseBuilder AddArray<T, TKey>(
+            IConstSizeSerializer<T> serializer,
+            Func<IEnumerable<T>> elements,
+            Func<T, TKey> selector,
+            IComparer<TKey> comparer)
         {
             builder.AddArray(serializer);
             return this;
         }
 
-        public override DatabaseBuilder AddIndirectArray<T>(ISerializer<T> serializer, Func<IEnumerable<T>> elements)
+        public override DatabaseBuilder AddIndirectArray<T, TKey>(
+            ISerializer<T> serializer,
+            Func<IEnumerable<T>> elements,
+            Func<T, TKey> selector,
+            IComparer<TKey> comparer)
         {
             builder.AddIndirectArray(serializer);
             return this;
