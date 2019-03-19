@@ -41,7 +41,7 @@ namespace TinyIndex.Tests
             };
             var db = Database.CreateOrOpen(path, Guid.Empty)
                 .AddArray(new CompoundTypeSerializer(), () => actual)
-                .AddArray(new IntSerializer(), () => new[] {1, 2, 3, 4, 5})
+                .AddArray(new IntSerializer(), () => new[] { 1, 2, 3, 4, 5 })
                 .Build();
             using (db)
             {
@@ -108,6 +108,8 @@ namespace TinyIndex.Tests
         [Test]
         public void VersioningTest()
         {
+            var a = Guid.NewGuid();
+            var b = Guid.NewGuid();
             var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
             File.Delete(path);
             using (var db = Database.CreateOrOpen(path, Guid.NewGuid()).AddArray(new IntSerializer(), () => new[] { 4, 5, 6 }).Build())
@@ -116,23 +118,50 @@ namespace TinyIndex.Tests
                 Assert.AreEqual(intArr[1], 5);
                 CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 4, 5, 6 });
             }
-            using (var db = Database.CreateOrOpen(path, Guid.Empty).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
+            using (var db = Database.CreateOrOpen(path, a).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
             {
                 var intArr = db.Get<int>(0);
                 Assert.AreEqual(intArr[1], 2);
                 CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3 });
             }
-            using (var db = Database.CreateOrOpen(path, Guid.Empty).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
+            using (var db = Database.CreateOrOpen(path, a).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
             {
                 var intArr = db.Get<int>(0);
                 Assert.AreEqual(intArr[1], 2);
                 CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3 });
             }
-            using (var db = Database.Open(path, Guid.Empty).AddArray(new IntSerializer()).Build())
+
+            try
+            {
+                using (var db = Database.CreateOrOpen(path, b)
+                    .AddArray(new IntSerializer(), () => new []{42, 43, 44})
+                    .AddArray(new IntSerializer(), Sequence).Build())
+                {
+                    
+                }
+
+                IEnumerable<int> Sequence()
+                {
+                    yield return 42;
+                    throw new Exception();
+                }
+            }
+            catch (Exception)
+            {
+                // by design of the test
+            }
+
+            using (var db = Database.CreateOrOpen(path, b).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
             {
                 var intArr = db.Get<int>(0);
-                Assert.AreEqual(intArr[1], 2);
-                CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3 });
+                Assert.AreEqual(2, intArr[1]);
+                CollectionAssert.AreEqual(new[] { 1, 2, 3 }, intArr.LinearScan());
+            }
+            using (var db = Database.Open(path, b).AddArray(new IntSerializer()).Build())
+            {
+                var intArr = db.Get<int>(0);
+                Assert.AreEqual(2, intArr[1]);
+                CollectionAssert.AreEqual(new[] { 1, 2, 3 }, intArr.LinearScan());
             }
             File.Delete(path);
         }
@@ -185,7 +214,7 @@ namespace TinyIndex.Tests
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
             if (obj.GetType() != this.GetType()) return false;
-            return Equals((CompoundType) obj);
+            return Equals((CompoundType)obj);
         }
 
         public override int GetHashCode()
@@ -268,7 +297,7 @@ namespace TinyIndex.Tests
 
         public int Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
         {
-            if(sourceBufferLength < ElementSize)
+            if (sourceBufferLength < ElementSize)
                 throw new InvalidDataException();
             return BitConverter.ToInt32(sourceBuffer, sourceBufferOffset);
         }
