@@ -98,6 +98,11 @@ namespace TinyIndex
                     byte* output = outputBase + destinationBufferOffset;
                     try
                     {
+                        if (destinationBuffer.Length < destinationBufferLength + destinationBufferOffset)
+                        {
+                            actualSize = 0;
+                            return false;
+                        }
                         encoder.Convert(input, element.Length, output, destinationBufferLength, true, out _, out var bytesUsed, out var completed);
                         actualSize = completed
                             ? bytesUsed
