@@ -23,29 +23,33 @@ namespace TinyIndex
             }
         }
 
-        public static DatabaseOpeningBuilder Open(string path)
+        public static DatabaseOpeningBuilder Open(string path, Guid versionCheck)
         {
-            return new DatabaseOpeningBuilder(OpenReadonly(path), () => OpenReadonly(path));
+            return new DatabaseOpeningBuilder(OpenReadonly(path), () => OpenReadonly(path), versionCheck);
         }
 
-        public static DatabaseBuilder CreateOrOpen(string path)
+        public static DatabaseBuilder CreateOrOpen(string path, Guid versionCheck)
         {
             try
             {
                 // the created stream is kept for the purposes of
                 // avoiding TOCTTOU issues, and closed as soon
                 // as possible, in the builder's Build function
-                return new DatabaseCreationOrOpenBuilder(OpenReadonly(path), () => OpenReadonly(path));
+                return new DatabaseCreationOrOpenBuilder(OpenReadonly(path), () => OpenReadonly(path), versionCheck);
             }
             catch (FileNotFoundException)
             {
-                return Create(path);
+                return Create(path, versionCheck);
+            }
+            catch (InvalidDataException)
+            {
+                return Create(path, versionCheck);
             }
         }
 
-        public static DatabaseBuilder Create(string path)
+        public static DatabaseBuilder Create(string path, Guid versionCheck)
         {
-            return new DatabaseCreationBuilder(path);
+            return new DatabaseCreationBuilder(path, versionCheck);
         }
 
         internal static FileStream OpenReadonly(string path)
@@ -54,7 +58,9 @@ namespace TinyIndex
                 path,
                 FileMode.Open,
                 FileAccess.Read,
-                FileShare.Read);
+                FileShare.Read,
+                4096,
+                FileOptions.RandomAccess);
         }
 
         internal Database(Func<Stream> streamFactory, IReadOnlyList<ArrayHeader> headers)

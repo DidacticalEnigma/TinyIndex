@@ -14,11 +14,11 @@ namespace TinyIndex.Tests
     public class Basic
     {
         [Test]
-        public void Test()
+        public void Test1()
         {
             var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
             File.Delete(path);
-            using (var db = Database.CreateOrOpen(path).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
+            using (var db = Database.CreateOrOpen(path, Guid.Empty).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
             {
                 var intArr = db.Get<int>(0);
                 Assert.AreEqual(intArr[1], 2);
@@ -39,7 +39,7 @@ namespace TinyIndex.Tests
                 new CompoundType {A = 1337, B = "John Matrix", C = 1000},
                 new CompoundType {A = 1337, B = @"Major Alan ""Dutch"" Schaefer", C = 32},
             };
-            var db = Database.CreateOrOpen(path)
+            var db = Database.CreateOrOpen(path, Guid.Empty)
                 .AddArray(new CompoundTypeSerializer(), () => actual)
                 .AddArray(new IntSerializer(), () => new[] {1, 2, 3, 4, 5})
                 .Build();
@@ -66,7 +66,7 @@ namespace TinyIndex.Tests
                 "super long text abcdefghijklmnopqrstuvwxyz",
 
             };
-            var db = Database.CreateOrOpen(path)
+            var db = Database.CreateOrOpen(path, Guid.Empty)
                 .AddIndirectArray(new StringSerializer(), () => actual)
                 .Build();
             using (db)
@@ -90,7 +90,7 @@ namespace TinyIndex.Tests
             {
                 list.Add(random.Next(0, 1000000000));
             }
-            var db = Database.CreateOrOpen(path)
+            var db = Database.CreateOrOpen(path, Guid.Empty)
                 .AddArray(new IntSerializer(), () => list, Comparer<int>.Default)
                 .Build();
             using (db)
@@ -101,6 +101,38 @@ namespace TinyIndex.Tests
                 Assert.AreEqual(22, intArr.BinarySearch(43700, x => x).id);
                 Assert.AreEqual(list.Count - 1, intArr.BinarySearch(999998544, x => x).id);
                 CollectionAssert.AreEqual(intArr.LinearScan(), list.OrderBy(x => x));
+            }
+            File.Delete(path);
+        }
+
+        [Test]
+        public void VersioningTest()
+        {
+            var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
+            File.Delete(path);
+            using (var db = Database.CreateOrOpen(path, Guid.NewGuid()).AddArray(new IntSerializer(), () => new[] { 4, 5, 6 }).Build())
+            {
+                var intArr = db.Get<int>(0);
+                Assert.AreEqual(intArr[1], 5);
+                CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 4, 5, 6 });
+            }
+            using (var db = Database.CreateOrOpen(path, Guid.Empty).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
+            {
+                var intArr = db.Get<int>(0);
+                Assert.AreEqual(intArr[1], 2);
+                CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3 });
+            }
+            using (var db = Database.CreateOrOpen(path, Guid.Empty).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
+            {
+                var intArr = db.Get<int>(0);
+                Assert.AreEqual(intArr[1], 2);
+                CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3 });
+            }
+            using (var db = Database.Open(path, Guid.Empty).AddArray(new IntSerializer()).Build())
+            {
+                var intArr = db.Get<int>(0);
+                Assert.AreEqual(intArr[1], 2);
+                CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3 });
             }
             File.Delete(path);
         }

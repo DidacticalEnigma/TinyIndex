@@ -14,17 +14,22 @@ namespace TinyIndex
         private readonly Stream stream;
         private readonly Func<Stream> streamFactory;
 
-        internal DatabaseOpeningBuilder(Stream stream, Func<Stream> streamFactory)
+        internal DatabaseOpeningBuilder(Stream stream, Func<Stream> streamFactory, Guid versionCheck)
         {
             this.stream = stream;
             this.streamFactory = streamFactory;
 
             try
             {
-                byte[] buffer = new byte[sizeof(long)];
-                stream.ReadFully(buffer);
+                byte[] buffer = new byte[16];
+                stream.ReadFully(buffer, 0, sizeof(long));
                 if (BitConverter.ToInt64(buffer, 0) != 1)
                     throw new InvalidDataException();
+                stream.ReadFully(buffer);
+                if (new Guid(buffer) != versionCheck)
+                {
+                    throw new InvalidDataException();
+                }
             }
             catch
             {
@@ -175,6 +180,7 @@ namespace TinyIndex
     internal class DatabaseCreationBuilder : DatabaseBuilder
     {
         private readonly string path;
+        private readonly Guid versionCheck;
 
         private List<Func<Stream, byte[], ArrayHeader>> actions = new List<Func<Stream, byte[], ArrayHeader>>();
 
@@ -247,9 +253,10 @@ namespace TinyIndex
         {
             var buffer = new byte[8192];
             var headers = new List<ArrayHeader>();
-            using (var stream = File.OpenWrite(path))
+            using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
             {
                 stream.Write(BitConverter.GetBytes(1L));
+                stream.Write(versionCheck.ToByteArray());
                 foreach (var action in actions)
                 {
                     headers.Add(action(stream, buffer));
@@ -303,9 +310,10 @@ namespace TinyIndex
             return this;
         }
 
-        internal DatabaseCreationBuilder(string path)
+        internal DatabaseCreationBuilder(string path, Guid versionCheck)
         {
             this.path = path;
+            this.versionCheck = versionCheck;
         }
     }
 
@@ -313,9 +321,9 @@ namespace TinyIndex
     {
         private readonly DatabaseOpeningBuilder builder;
 
-        internal DatabaseCreationOrOpenBuilder(Stream stream, Func<Stream> streamFactory)
+        internal DatabaseCreationOrOpenBuilder(Stream stream, Func<Stream> streamFactory, Guid versionCheck)
         {
-            this.builder = new DatabaseOpeningBuilder(stream, streamFactory);
+            this.builder = new DatabaseOpeningBuilder(stream, streamFactory, versionCheck);
         }
 
         public override DatabaseBuilder AddArray<T, TKey>(
