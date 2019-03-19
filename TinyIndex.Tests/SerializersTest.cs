@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
-using System.Threading.Tasks;
 using NUnit.Framework;
 
 namespace TinyIndex.Tests
@@ -16,7 +13,7 @@ namespace TinyIndex.Tests
             .With(Serializer.ForInt())
             .With(Serializer.ForStringAsUTF8())
             .With(Serializer.ForLong())
-            .With(Serializer.ForCollection(Serializer.ForEnum<FileShare>(), enumerable => enumerable.ToArray()))
+            .With(Serializer.ForArray(Serializer.ForEnum<FileShare>()))
             .Create()
             .Mapping(raw => new ComplexComposite()
             {

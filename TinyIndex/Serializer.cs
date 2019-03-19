@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text;
 
@@ -302,7 +300,7 @@ namespace TinyIndex
                         return false;
                     }
 
-                    actualSize = (int)memoryStream.Length;
+                    actualSize = (int)memoryStream.Position;
                     return true;
                 }
             }
@@ -385,7 +383,7 @@ namespace TinyIndex
                         return false;
                     }
 
-                    actualSize = (int)memoryStream.Length;
+                    actualSize = (int)memoryStream.Position;
                     return true;
                 }
             }
@@ -446,6 +444,13 @@ namespace TinyIndex
             where TCollection : IReadOnlyCollection<TElement>
         {
             return new CollectionSerializer<TCollection, TElement>(elementSerializer, collectionFactory);
+        }
+
+        public static ISerializer<TElement[]> ForArray<TElement>(ISerializer<TElement> elementSerializer)
+        {
+            return new CollectionSerializer<TElement[], TElement>(
+                elementSerializer,
+                enumerable => enumerable.ToArray());
         }
 
         public static ISerializer<IReadOnlyCollection<TElement>> ForReadOnlyCollection<TElement>(
@@ -547,6 +552,17 @@ namespace TinyIndex
         public static ISerializer<T> DotNetBinary<T>(IFormatter formatter)
         {
             return new DotNetBinarySerializer<T>(formatter);
+        }
+
+        public static ISerializer<KeyValuePair<TKey, TValue>> ForKeyValuePair<TKey, TValue>(ISerializer<TKey> keySerializer, ISerializer<TValue> valueSerializer)
+        {
+            return ForComposite()
+                .With(keySerializer)
+                .With(valueSerializer)
+                .Create()
+                .Mapping(
+                    raw => new KeyValuePair<TKey, TValue>((TKey) raw[0], (TValue) raw[1]),
+                    obj => new object[] {obj.Key, obj.Value});
         }
     }
 }
