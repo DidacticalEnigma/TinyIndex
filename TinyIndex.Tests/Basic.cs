@@ -189,7 +189,7 @@ namespace TinyIndex.Tests
         public int ElementSize => 4 + 8 + 32;
         public CompoundType Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
         {
-            if (sourceBufferLength != ElementSize)
+            if (sourceBufferLength < ElementSize)
             {
                 throw new InvalidDataException();
             }
@@ -209,7 +209,7 @@ namespace TinyIndex.Tests
 
         public bool TrySerialize(CompoundType element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength, out int actualSize)
         {
-            if (destinationBufferLength != ElementSize)
+            if (destinationBufferLength < ElementSize)
             {
                 actualSize = 0;
                 return false;
@@ -236,14 +236,14 @@ namespace TinyIndex.Tests
 
         public int Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
         {
-            if(sourceBufferLength != ElementSize)
+            if(sourceBufferLength < ElementSize)
                 throw new InvalidDataException();
             return BitConverter.ToInt32(sourceBuffer, sourceBufferOffset);
         }
 
         public bool TrySerialize(int element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength, out int actualSize)
         {
-            if (destinationBufferLength != ElementSize)
+            if (destinationBufferLength < ElementSize)
             {
                 actualSize = 0;
                 return false;

@@ -176,7 +176,7 @@ namespace TinyIndex
     {
         private readonly string path;
 
-        private List<Func<Stream, ArrayHeader>> actions = new List<Func<Stream, ArrayHeader>>();
+        private List<Func<Stream, byte[], ArrayHeader>> actions = new List<Func<Stream, byte[], ArrayHeader>>();
 
         public override DatabaseBuilder AddIndirectArray<T, TKey>(
             ISerializer<T> serializer,
@@ -184,7 +184,7 @@ namespace TinyIndex
             Func<T, TKey> selector,
             IComparer<TKey> comparer)
         {
-            actions.Add(stream =>
+            actions.Add((stream, buffer) =>
             {
                 var headerPosition = stream.Position;
                 // write a dummy header
@@ -195,7 +195,6 @@ namespace TinyIndex
                 stream.Write(BitConverter.GetBytes(0L));
 
                 var dataStartPosition = stream.Position;
-                var buffer = new byte[0];
                 long elementCount = 0;
                 // TODO: less lazy way
                 var offsetList = new List<long>();
@@ -246,13 +245,14 @@ namespace TinyIndex
 
         internal override Database Finish()
         {
+            var buffer = new byte[8192];
             var headers = new List<ArrayHeader>();
             using (var stream = File.OpenWrite(path))
             {
                 stream.Write(BitConverter.GetBytes(1L));
                 foreach (var action in actions)
                 {
-                    headers.Add(action(stream));
+                    headers.Add(action(stream, buffer));
                 }
             }
 
@@ -265,14 +265,14 @@ namespace TinyIndex
             Func<T, TKey> selector,
             IComparer<TKey> comparer)
         {
-            actions.Add(stream =>
+            actions.Add((stream, buffer) =>
             {
                 var headerPosition = stream.Position;
                 // write a dummy header
                 var dummyHeaderBytes = new ArrayHeader().AsBytes();
                 stream.Write(dummyHeaderBytes);
                 var elementLength = serializer.ElementSize;
-                var buffer = new byte[elementLength];
+                Utility.EnsureArrayOfMinimalSize(ref buffer, elementLength);
                 long elementCount = 0;
                 var elementsEnumerable = elements();
                 if (comparer != null)
@@ -280,7 +280,7 @@ namespace TinyIndex
                 foreach (var element in elementsEnumerable)
                 {
                     serializer.TrySerialize(element, buffer, 0, elementLength, out _);
-                    stream.Write(buffer);
+                    stream.Write(buffer, 0, elementLength);
                     elementCount++;
                 }
 
