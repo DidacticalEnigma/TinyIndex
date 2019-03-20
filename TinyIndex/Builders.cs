@@ -90,6 +90,7 @@ namespace TinyIndex
             header.Serializer = serializer;
             header.StartsAt = preHeaderPosition + headerBytes.Length;
             header.EndsAt = header.StartsAt + header.OverallLength;
+            stream.Seek(header.EndsAt, SeekOrigin.Begin);
             return header;
         }
 

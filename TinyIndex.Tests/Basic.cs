@@ -106,6 +106,51 @@ namespace TinyIndex.Tests
         }
 
         [Test]
+        public void ComplexTest()
+        {
+            var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
+            File.Delete(path);
+            var random = new Random(42);
+            var list = new List<int>();
+            for (int i = 0; i < 1; ++i)
+            {
+                list.Add(-1);
+            }
+
+            {
+                var db = Database.CreateOrOpen(path, Guid.Empty)
+                    .AddIndirectArray(new IntSerializer(), () => list, Comparer<int>.Default)
+                    .AddIndirectArray(new CompoundTypeSerializer(),
+                        () => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
+                    .AddIndirectArray(new IntSerializer(), () => list, Comparer<int>.Default)
+                    .AddIndirectArray(new CompoundTypeSerializer(),
+                        () => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
+                    .Build();
+                using (db)
+                {
+                    var intArr = db.Get<int>(2);
+                    CollectionAssert.AreEqual(intArr.LinearScan(), list.OrderBy(x => x));
+                }
+            }
+            {
+                var db = Database.CreateOrOpen(path, Guid.Empty)
+                    .AddIndirectArray(new IntSerializer(), () => list, Comparer<int>.Default)
+                    .AddIndirectArray(new CompoundTypeSerializer(),
+                        () => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
+                    .AddIndirectArray(new IntSerializer(), () => list, Comparer<int>.Default)
+                    .AddIndirectArray(new CompoundTypeSerializer(),
+                        () => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
+                    .Build();
+                using (db)
+                {
+                    var intArr = db.Get<int>(2);
+                    CollectionAssert.AreEqual(intArr.LinearScan(), list.OrderBy(x => x));
+                }
+            }
+            File.Delete(path);
+        }
+
+        [Test]
         public void VersioningTest()
         {
             var a = Guid.NewGuid();

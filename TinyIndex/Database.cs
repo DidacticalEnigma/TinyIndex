@@ -4,6 +4,15 @@ using System.IO;
 
 namespace TinyIndex
 {
+    // Format description:
+    // The meta header for the entire file:
+    // - 64-bit little endian version of the database file: only version 1 is supported so far
+    // - 16 bytes that constitute the GUID of the file itself. Used for migrations.
+    // For each array stored:
+    //     The array header:
+    //     - 64-bit little endian record count
+    //     - 64-bit little endian overall length in bytes
+    //     - 64-bit little endian type
     public class Database : IDisposable
     {
         private readonly IReadOnlyList<ArrayHeader> headers;
