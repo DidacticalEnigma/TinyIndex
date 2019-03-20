@@ -307,6 +307,20 @@ namespace TinyIndex
                 out int actualSize)
             {
                 int overallSize = 0;
+                {
+                    var lengthBytes = BitConverter.GetBytes(element.Count);
+                    if (lengthBytes.AsSpan().TryCopyTo(output))
+                    {
+                        output = output.Slice(sizeof(int));
+                        overallSize += sizeof(int);
+                    }
+                    else
+                    {
+                        actualSize = 0;
+                        return false;
+                    }
+                }
+
                 foreach (var e in element)
                 {
                     var start = isConstSize ? 0 : sizeof(int);
