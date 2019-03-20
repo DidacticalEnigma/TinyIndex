@@ -18,7 +18,10 @@ namespace TinyIndex
             IComparer<TKey> comparer);
 
         IEnumerable<T> GetIdRange(long idStart, long idEnd);
+
         IEnumerable<T> LinearScan();
+
+        long Count { get; }
     }
 
     public static class ReadOnlyDiskArrayExtensions

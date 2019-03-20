@@ -92,6 +92,8 @@ namespace TinyIndex
             }
         }
 
+        public long Count => header.RecordCount;
+
         private long DataStartOffset => header.StartsAt + sizeof(long);
 
         internal NonClusteredReadOnlyDiskArray(ArrayHeader header, RandomAccessFile file, ISerializer<T> serializer)

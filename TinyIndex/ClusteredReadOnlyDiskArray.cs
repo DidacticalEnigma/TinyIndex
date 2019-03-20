@@ -41,7 +41,7 @@ namespace TinyIndex
                 throw new ArgumentException();
             if (idStart < 0)
                 throw new ArgumentOutOfRangeException();
-            if (idEnd >= header.RecordCount)
+            if (idEnd >= Count)
                 throw new ArgumentOutOfRangeException();
 
             var count = idEnd - idStart;
@@ -89,6 +89,8 @@ namespace TinyIndex
                 }
             }
         }
+
+        public long Count => header.RecordCount;
 
         internal ClusteredReadOnlyDiskArray(ArrayHeader header, RandomAccessFile file, ISerializer<T> serializer)
         {
