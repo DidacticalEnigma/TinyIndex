@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.Serialization;
 using System.Text;
 
@@ -436,6 +437,42 @@ namespace TinyIndex
         public static CompositeBuilder ForComposite()
         {
             return new CompositeBuilder();
+        }
+
+        public static ISerializer<(T1, T2)> ForTuple<T1, T2>(ISerializer<T1> s1, ISerializer<T2> s2)
+        {
+            return ForComposite()
+                .With(s1)
+                .With(s2)
+                .Create()
+                .Mapping(
+                    raw => ((T1) raw[0], (T2) raw[1]),
+                    obj => new object[]{obj.Item1, obj.Item2});
+        }
+
+        public static ISerializer<(T1, T2, T3)> ForTuple<T1, T2, T3>(ISerializer<T1> s1, ISerializer<T2> s2, ISerializer<T3> s3)
+        {
+            return ForComposite()
+                .With(s1)
+                .With(s2)
+                .With(s3)
+                .Create()
+                .Mapping(
+                    raw => ((T1)raw[0], (T2)raw[1], (T3)raw[2]),
+                    obj => new object[] { obj.Item1, obj.Item2, obj.Item3 });
+        }
+
+        public static ISerializer<(T1, T2, T3, T4)> ForTuple<T1, T2, T3, T4>(ISerializer<T1> s1, ISerializer<T2> s2, ISerializer<T3> s3, ISerializer<T4> s4)
+        {
+            return ForComposite()
+                .With(s1)
+                .With(s2)
+                .With(s3)
+                .With(s4)
+                .Create()
+                .Mapping(
+                    raw => ((T1)raw[0], (T2)raw[1], (T3)raw[2], (T4)raw[3]),
+                    obj => new object[] { obj.Item1, obj.Item2, obj.Item3, obj.Item4 });
         }
 
         public static ISerializer<TCollection> ForCollection<TCollection, TElement>(
