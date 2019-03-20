@@ -21,7 +21,7 @@ namespace TinyIndex
         private T ReadRecordWithId(long id, ref byte[] buffer)
         {
             file.ReadAt(header.StartsAt + id * recordLength, buffer, 0, recordLength);
-            return serializer.Deserialize(buffer, 0, recordLength);
+            return serializer.Deserialize(buffer.AsSpan().Slice(0, recordLength));
         }
 
         public T this[long id]
@@ -51,7 +51,7 @@ namespace TinyIndex
             var elements = new List<T>();
             for (int i = 0; i < count; ++i)
             {
-                elements.Add(serializer.Deserialize(buffer, recordLength * i, recordLength));
+                elements.Add(serializer.Deserialize(buffer.AsSpan().Slice(recordLength * i, recordLength)));
             }
 
             return elements;
@@ -85,7 +85,7 @@ namespace TinyIndex
                 for (long i = 0; i < header.RecordCount; ++i)
                 {
                     stream.ReadFully(buffer);
-                    yield return serializer.Deserialize(buffer, 0, recordLength);
+                    yield return serializer.Deserialize(buffer.AsSpan().Slice(0, recordLength));
                 }
             }
         }

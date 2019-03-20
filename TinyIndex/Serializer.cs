@@ -15,25 +15,24 @@ namespace TinyIndex
         {
             public int ElementSize => sizeof(int);
 
-            public int Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+            public int Deserialize(ReadOnlySpan<byte> input)
             {
-                if (sourceBufferLength != ElementSize)
+                if (input.Length < ElementSize)
                     throw new InvalidDataException();
-                return BitConverter.ToInt32(sourceBuffer, sourceBufferOffset);
+                return BitConverter.ToInt32(input.Slice(0, 4).ToArray(), 0);
             }
 
-            public bool TrySerialize(int element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength, out int actualSize)
+            public bool TrySerialize(int element, Span<byte> output, out int actualSize)
             {
-                if (destinationBufferLength < ElementSize)
+                var bytes = BitConverter.GetBytes(element);
+                if (bytes.AsSpan().TryCopyTo(output))
                 {
-                    actualSize = 0;
-                    return false;
+                    actualSize = ElementSize;
+                    return true;
                 }
 
-                var bytes = BitConverter.GetBytes(element);
-                Array.Copy(bytes, 0, destinationBuffer, destinationBufferOffset, ElementSize);
-                actualSize = ElementSize;
-                return true;
+                actualSize = 0;
+                return false;
             }
 
             public static readonly IntSerializer Serializer = new IntSerializer();
@@ -48,25 +47,24 @@ namespace TinyIndex
         {
             public int ElementSize => sizeof(long);
 
-            public long Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+            public long Deserialize(ReadOnlySpan<byte> input)
             {
-                if (sourceBufferLength != ElementSize)
+                if (input.Length < ElementSize)
                     throw new InvalidDataException();
-                return BitConverter.ToInt64(sourceBuffer, sourceBufferOffset);
+                return BitConverter.ToInt64(input.Slice(0, 8).ToArray(), 0);
             }
 
-            public bool TrySerialize(long element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength, out int actualSize)
+            public bool TrySerialize(long element, Span<byte> output, out int actualSize)
             {
-                if (destinationBufferLength < ElementSize)
+                var bytes = BitConverter.GetBytes(element);
+                if (bytes.AsSpan().TryCopyTo(output))
                 {
-                    actualSize = 0;
-                    return false;
+                    actualSize = ElementSize;
+                    return true;
                 }
 
-                var bytes = BitConverter.GetBytes(element);
-                Array.Copy(bytes, 0, destinationBuffer, destinationBufferOffset, ElementSize);
-                actualSize = ElementSize;
-                return true;
+                actualSize = 0;
+                return false;
             }
 
             public static readonly LongSerializer Serializer = new LongSerializer();
@@ -79,31 +77,23 @@ namespace TinyIndex
 
         private class StringSerializer : ISerializer<string>
         {
-            public string Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+            public string Deserialize(ReadOnlySpan<byte> input)
             {
-                return Encoding.UTF8.GetString(sourceBuffer, sourceBufferOffset, sourceBufferLength);
+                return Encoding.UTF8.GetString(input.ToArray());
             }
 
             public unsafe bool TrySerialize(
                 string element,
-                byte[] destinationBuffer,
-                int destinationBufferOffset,
-                int destinationBufferLength,
+                Span<byte> output,
                 out int actualSize)
             {
                 var encoder = Encoding.UTF8.GetEncoder();
-                fixed (byte* outputBase = destinationBuffer)
+                fixed (byte* o = output)
                 fixed (char* input = element)
                 {
-                    byte* output = outputBase + destinationBufferOffset;
                     try
                     {
-                        if (destinationBuffer.Length < destinationBufferLength + destinationBufferOffset)
-                        {
-                            actualSize = 0;
-                            return false;
-                        }
-                        encoder.Convert(input, element.Length, output, destinationBufferLength, true, out _, out var bytesUsed, out var completed);
+                        encoder.Convert(input, element.Length, o, output.Length, true, out _, out var bytesUsed, out var completed);
                         actualSize = completed
                             ? bytesUsed
                             : 0;
@@ -143,23 +133,16 @@ namespace TinyIndex
                 this.fromFunc = fromFunc;
             }
 
-            public TEnum Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+            public TEnum Deserialize(ReadOnlySpan<byte> input)
             {
-                return fromFunc(serializer.Deserialize(sourceBuffer, sourceBufferOffset, sourceBufferLength));
+                return fromFunc(serializer.Deserialize(input));
             }
 
-            public bool TrySerialize(
-                TEnum element,
-                byte[] destinationBuffer,
-                int destinationBufferOffset,
-                int destinationBufferLength,
-                out int actualSize)
+            public bool TrySerialize(TEnum element, Span<byte> output, out int actualSize)
             {
                 return serializer.TrySerialize(
                     toFunc(element),
-                    destinationBuffer,
-                    destinationBufferOffset,
-                    destinationBufferLength,
+                    output,
                     out actualSize);
             }
 
@@ -186,14 +169,9 @@ namespace TinyIndex
 
         private abstract class TypeErasingSerializer : ISerializer<object>
         {
-            public abstract object Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength);
+            public abstract object Deserialize(ReadOnlySpan<byte> input);
 
-            public abstract bool TrySerialize(
-                object element,
-                byte[] destinationBuffer,
-                int destinationBufferOffset,
-                int destinationBufferLength,
-                out int actualSize);
+            public abstract bool TrySerialize(object element, Span<byte> output, out int actualSize);
 
             public int ElementSize { get; }
 
@@ -215,95 +193,75 @@ namespace TinyIndex
                 this.serializer = serializer;
             }
 
-            public override object Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+            public override object Deserialize(ReadOnlySpan<byte> input)
             {
-                return serializer.Deserialize(sourceBuffer, sourceBufferOffset, sourceBufferLength);
+                return serializer.Deserialize(input);
             }
 
             public override bool TrySerialize(
                 object element,
-                byte[] destinationBuffer,
-                int destinationBufferOffset,
-                int destinationBufferLength,
+                Span<byte> output,
                 out int actualSize)
             {
                 return serializer.TrySerialize(
                     (T)element,
-                    destinationBuffer,
-                    destinationBufferOffset,
-                    destinationBufferLength,
+                    output,
                     out actualSize);
             }
         }
 
         private class CompositeSerializer : ISerializer<object[]>
         {
-            public object[] Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+            public object[] Deserialize(ReadOnlySpan<byte> input)
             {
-                return Iterator().ToArray();
-
-                IEnumerable<object> Iterator()
+                var list = new List<object>();
+                for (int i = 0; i < serializers.Count; ++i)
                 {
-                    for (int i = 0; i < serializers.Count; ++i)
+                    int elementLength;
+                    if (!serializers[i].IsConstSize)
                     {
-                        int elementLength;
-                        if (!serializers[i].IsConstSize)
-                        {
-                            elementLength = BitConverter.ToInt32(sourceBuffer, sourceBufferOffset);
-                            sourceBufferOffset += sizeof(int);
-                            sourceBufferLength -= sizeof(int);
-                        }
-                        else
-                        {
-                            elementLength = serializers[i].ElementSize;
-                        }
-
-                        var element = serializers[i].Deserialize(sourceBuffer, sourceBufferOffset, elementLength);
-                        sourceBufferOffset += elementLength;
-                        sourceBufferLength -= elementLength;
-                        yield return element;
+                        elementLength = BitConverter.ToInt32(input.Slice(0, sizeof(int)).ToArray(), 0);
+                        input = input.Slice(sizeof(int));
                     }
+                    else
+                    {
+                        elementLength = serializers[i].ElementSize;
+                    }
+
+                    var element = serializers[i].Deserialize(input.Slice(0, elementLength));
+                    input = input.Slice(elementLength);
+                    list.Add(element);
                 }
+
+                return list.ToArray();
             }
 
             public bool TrySerialize(
                 object[] element,
-                byte[] destinationBuffer,
-                int destinationBufferOffset,
-                int destinationBufferLength,
+                Span<byte> output,
                 out int actualSize)
             {
-                using (var memoryStream = new MemoryStream(
-                    destinationBuffer,
-                    destinationBufferOffset,
-                    destinationBufferLength,
-                    writable: true))
-                using (var binaryWriter = new BinaryWriter(memoryStream))
+                int overallSize = 0;
+                for (int i = 0; i < element.Length; ++i)
                 {
-                    try
+                    var start = serializers[i].IsConstSize ? 0 : sizeof(int);
+                    var outputLengthBytes = output.Slice(0, Math.Min(start, output.Length));
+                    if (serializers[i].TrySerialize(element[i], output.Slice(start), out var actualLength))
                     {
-                        var buffer = new byte[32];
-                        for (int i = 0; i < element.Length; ++i)
-                        {
-                            int actualLength;
-                            while (!serializers[i].TrySerialize(element[i], buffer, 0, buffer.Length, out actualLength))
-                            {
-                                Utility.Reallocate(ref buffer);
-                            }
-                            if(!serializers[i].IsConstSize)
-                                binaryWriter.Write(actualLength);
-                            binaryWriter.Write(buffer, 0, actualLength);
-                        }
+                        var lengthBytes = BitConverter.GetBytes(actualLength);
+                        lengthBytes.AsSpan().Slice(0, start).TryCopyTo(outputLengthBytes);
+                        output = output.Slice(start + actualLength);
+                        overallSize += start + actualLength;
                     }
-                    catch (NotSupportedException)
+                    else
                     {
                         actualSize = 0;
                         return false;
                     }
-
-                    actualSize = (int)memoryStream.Position;
-                    return true;
                 }
+
+                actualSize = overallSize;
+                return true;
             }
 
             private readonly IReadOnlyList<TypeErasingSerializer> serializers;
@@ -318,75 +276,57 @@ namespace TinyIndex
         private class CollectionSerializer<TCollection, TElement> : ISerializer<TCollection>
             where TCollection : IReadOnlyCollection<TElement>
         {
-            public TCollection Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+            public TCollection Deserialize(ReadOnlySpan<byte> input)
             {
-                return collectionFactory(Iterator());
-
-                IEnumerable<TElement> Iterator()
+                var list = new List<TElement>();
+                var length = BitConverter.ToInt32(input.Slice(0, sizeof(int)).ToArray(), 0);
+                input = input.Slice(sizeof(int));
+                for (int i = 0; i < length; ++i)
                 {
-                    var length = BitConverter.ToInt32(sourceBuffer, sourceBufferOffset);
-                    sourceBufferOffset += sizeof(int);
-                    sourceBufferLength -= sizeof(int);
-                    for (int i = 0; i < length; ++i)
+                    int elementLength;
+                    if (!isConstSize)
                     {
-                        int elementLength;
-                        if (!isConstSize)
-                        {
-                            elementLength = BitConverter.ToInt32(sourceBuffer, sourceBufferOffset);
-                            sourceBufferOffset += sizeof(int);
-                            sourceBufferLength -= sizeof(int);
-                        }
-                        else
-                        {
-                            elementLength = elementSize;
-                        }
-                        var element = elementSerializer.Deserialize(sourceBuffer, sourceBufferOffset, elementLength);
-                        sourceBufferOffset += elementLength;
-                        sourceBufferLength -= elementLength;
-                        yield return element;
+                        elementLength = BitConverter.ToInt32(input.Slice(0, sizeof(int)).ToArray(), 0);
+                        input = input.Slice(sizeof(int));
                     }
+                    else
+                    {
+                        elementLength = elementSize;
+                    }
+                    var element = elementSerializer.Deserialize(input.Slice(0, elementLength));
+                    input = input.Slice(elementLength);
+                    list.Add(element);
                 }
+
+                return collectionFactory(list);
             }
 
             public bool TrySerialize(
                 TCollection element,
-                byte[] destinationBuffer,
-                int destinationBufferOffset,
-                int destinationBufferLength,
+                Span<byte> output,
                 out int actualSize)
             {
-                using (var memoryStream = new MemoryStream(
-                    destinationBuffer,
-                    destinationBufferOffset,
-                    destinationBufferLength,
-                    writable: true))
-                using (var binaryWriter = new BinaryWriter(memoryStream))
+                int overallSize = 0;
+                foreach (var e in element)
                 {
-                    try
+                    var start = isConstSize ? 0 : sizeof(int);
+                    var outputLengthBytes = output.Slice(0, Math.Min(start, output.Length));
+                    if (elementSerializer.TrySerialize(e, output.Slice(start), out var actualLength))
                     {
-                        binaryWriter.Write(element.Count);
-                        var buffer = new byte[isConstSize ? elementSize : 32];
-                        foreach (var e in element)
-                        {
-                            int actualLength;
-                            while (!elementSerializer.TrySerialize(e, buffer, 0, buffer.Length, out actualLength))
-                            {
-                                Utility.Reallocate(ref buffer);
-                            }
-                            if(!isConstSize)
-                                binaryWriter.Write(actualLength);
-                            binaryWriter.Write(buffer, 0, actualLength);
-                        }
+                        var lengthBytes = BitConverter.GetBytes(actualLength);
+                        lengthBytes.AsSpan().TryCopyTo(outputLengthBytes);
+                        output = output.Slice(start + actualLength);
+                        overallSize += start + actualLength;
                     }
-                    catch (NotSupportedException)
+                    else
                     {
                         actualSize = 0;
                         return false;
                     }
-
-                    actualSize = (int)memoryStream.Position;
-                    return true;
                 }
+
+                actualSize = overallSize;
+                return true;
             }
 
             private readonly Func<IEnumerable<TElement>, TCollection> collectionFactory;
@@ -446,8 +386,8 @@ namespace TinyIndex
                 .With(s2)
                 .Create()
                 .Mapping(
-                    raw => ((T1) raw[0], (T2) raw[1]),
-                    obj => new object[]{obj.Item1, obj.Item2});
+                    raw => ((T1)raw[0], (T2)raw[1]),
+                    obj => new object[] { obj.Item1, obj.Item2 });
         }
 
         public static ISerializer<(T1, T2, T3)> ForTuple<T1, T2, T3>(ISerializer<T1> s1, ISerializer<T2> s2, ISerializer<T3> s3)
@@ -519,30 +459,26 @@ namespace TinyIndex
                 this.fromFunc = fromFunc;
             }
 
-            public TTo Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+            public TTo Deserialize(ReadOnlySpan<byte> input)
             {
-                return toFunc(serializer.Deserialize(sourceBuffer, sourceBufferOffset, sourceBufferLength));
+                return toFunc(serializer.Deserialize(input));
             }
 
             public bool TrySerialize(
                 TTo element,
-                byte[] destinationBuffer,
-                int destinationBufferOffset,
-                int destinationBufferLength,
+                Span<byte> output,
                 out int actualSize)
             {
                 return serializer.TrySerialize(
                     fromFunc(element),
-                    destinationBuffer,
-                    destinationBufferOffset,
-                    destinationBufferLength,
+                    output,
                     out actualSize);
             }
         }
 
         public static ISerializer<TTo> Mapping<TFrom, TTo>(this ISerializer<TFrom> serializer, Func<TFrom, TTo> toFunc, Func<TTo, TFrom> fromFunc)
         {
-            return new MappingSerializer<TFrom,TTo>(serializer, toFunc, fromFunc);
+            return new MappingSerializer<TFrom, TTo>(serializer, toFunc, fromFunc);
         }
 
 
@@ -550,24 +486,33 @@ namespace TinyIndex
         {
             private readonly IFormatter formatter;
 
-            public T Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+            public T Deserialize(ReadOnlySpan<byte> input)
             {
-                using (var memoryStream = new MemoryStream(sourceBuffer, sourceBufferOffset, sourceBufferLength))
+                using (var memoryStream = new MemoryStream(input.ToArray()))
                 {
                     return (T)formatter.Deserialize(memoryStream);
                 }
             }
 
-            public bool TrySerialize(T element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength,
+            public bool TrySerialize(
+                T element,
+                Span<byte> output,
                 out int actualSize)
             {
-                using (var memoryStream = new MemoryStream(destinationBuffer, destinationBufferOffset, destinationBufferLength, writable: true))
+                using (var memoryStream = new MemoryStream(output.Length))
                 {
                     try
                     {
                         formatter.Serialize(memoryStream, element);
-                        actualSize = (int)memoryStream.Position;
-                        return true;
+                        var s = (int)memoryStream.Position;
+                        if (memoryStream.GetBuffer().AsSpan().Slice(0, s).TryCopyTo(output))
+                        {
+                            actualSize = s;
+                            return true;
+                        }
+
+                        actualSize = 0;
+                        return false;
                     }
                     catch (NotSupportedException)
                     {
@@ -598,8 +543,8 @@ namespace TinyIndex
                 .With(valueSerializer)
                 .Create()
                 .Mapping(
-                    raw => new KeyValuePair<TKey, TValue>((TKey) raw[0], (TValue) raw[1]),
-                    obj => new object[] {obj.Key, obj.Value});
+                    raw => new KeyValuePair<TKey, TValue>((TKey)raw[0], (TValue)raw[1]),
+                    obj => new object[] { obj.Key, obj.Value });
         }
     }
 }

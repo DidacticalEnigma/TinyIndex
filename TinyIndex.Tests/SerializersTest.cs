@@ -42,8 +42,8 @@ namespace TinyIndex.Tests
             };
             // For the purposes of this test assume a buffer large enough
             var buffer = new byte[16384];
-            serializer.TrySerialize(original, buffer, 0, buffer.Length, out var actualSize);
-            var resurrected = serializer.Deserialize(buffer, 0, actualSize);
+            serializer.TrySerialize(original, buffer.AsSpan(), out var actualSize);
+            var resurrected = serializer.Deserialize(buffer.AsSpan().Slice(0, actualSize));
             Assert.AreEqual(original.A, resurrected.A);
             Assert.AreEqual(original.B, resurrected.B);
             Assert.AreEqual(original.C, resurrected.C);
@@ -57,8 +57,8 @@ namespace TinyIndex.Tests
             var buffer = new byte[16384];
             var longSerializer = Serializer.ForLong();
             long original = -1;
-            longSerializer.TrySerialize(original, buffer, 0, buffer.Length, out var actualSize);
-            var resurrected = longSerializer.Deserialize(buffer, 0, actualSize);
+            longSerializer.TrySerialize(original, buffer.AsSpan(), out var actualSize);
+            var resurrected = longSerializer.Deserialize(buffer.AsSpan().Slice(0, actualSize));
             Assert.AreEqual(original, resurrected);
         }
 
@@ -70,7 +70,7 @@ namespace TinyIndex.Tests
             var longSerializer = Serializer.ForLong();
             for (int i = 0; i < sizeof(long) + 2; ++i)
             {
-                var success = longSerializer.TrySerialize(original, buffer, 0, i, out var actualSize);
+                var success = longSerializer.TrySerialize(original, buffer.AsSpan().Slice(0, i), out var actualSize);
                 if (i < sizeof(long))
                 {
                     Assert.AreEqual(false, success);
@@ -91,9 +91,9 @@ namespace TinyIndex.Tests
             var expectedByteLength = Encoding.UTF8.GetByteCount(original);
             var buffer = new byte[expectedByteLength + 2];
             var stringSerializer = Serializer.ForStringAsUTF8();
-            for (int i = 0; i < expectedByteLength + 5; ++i)
+            for (int i = 0; i < expectedByteLength + 2; ++i)
             {
-                var success = stringSerializer.TrySerialize(original, buffer, 0, i, out var actualSize);
+                var success = stringSerializer.TrySerialize(original, buffer.AsSpan().Slice(0, i), out var actualSize);
                 if (i < expectedByteLength || buffer.Length < i)
                 {
                     Assert.AreEqual(false, success);
@@ -120,9 +120,9 @@ namespace TinyIndex.Tests
             // For the purposes of this test assume a buffer large enough
             var binarySerializer = Serializer.DotNetBinary<ComplexComposite>(new BinaryFormatter());
             var buffer = new byte[16384];
-            binarySerializer.TrySerialize(original, buffer, 0, buffer.Length, out var actualSize);
+            binarySerializer.TrySerialize(original, buffer.AsSpan(), out var actualSize);
             Assert.IsTrue(actualSize < buffer.Length);
-            var resurrected = binarySerializer.Deserialize(buffer, 0, actualSize);
+            var resurrected = binarySerializer.Deserialize(buffer.AsSpan().Slice(0, actualSize));
             Assert.AreEqual(original.A, resurrected.A);
             Assert.AreEqual(original.B, resurrected.B);
             Assert.AreEqual(original.C, resurrected.C);

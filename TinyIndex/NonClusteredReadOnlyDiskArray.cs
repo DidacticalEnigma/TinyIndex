@@ -17,7 +17,7 @@ namespace TinyIndex
             Utility.EnsureArrayOfMinimalSize(ref buffer, len);
             file.ReadAt(offset + sizeof(int), buffer, 0, len);
             length = len;
-            return serializer.Deserialize(buffer, 0, len);
+            return serializer.Deserialize(buffer.AsSpan().Slice(0, len));
         }
 
         private T ReadRecordWithId(long id, ref byte[] buffer)

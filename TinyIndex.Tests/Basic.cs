@@ -214,10 +214,9 @@ namespace TinyIndex.Tests
 
     public class StringSerializer : ISerializer<string>
     {
-        public string Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+        public string Deserialize(ReadOnlySpan<byte> input)
         {
-            var buff = new byte[sourceBufferLength];
-            Array.Copy(sourceBuffer, sourceBufferOffset, buff, 0, sourceBufferLength);
+            var buff = input.ToArray();
             using (var memoryStream = new MemoryStream(buff))
             using (var binaryReader = new BinaryReader(memoryStream))
             {
@@ -225,19 +224,17 @@ namespace TinyIndex.Tests
             }
         }
 
-        public bool TrySerialize(string element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength,
-            out int actualSize)
+        public bool TrySerialize(string element, Span<byte> output, out int actualSize)
         {
             using (var memoryStream = new MemoryStream())
             using (var binaryWriter = new BinaryWriter(memoryStream))
             {
                 binaryWriter.Write(element);
                 actualSize = (int)memoryStream.Length;
-                if (memoryStream.Length <= destinationBufferLength)
+                if (memoryStream.Length <= output.Length)
                 {
                     var source = memoryStream.ToArray();
-                    Array.Copy(source, 0, destinationBuffer, destinationBufferOffset, actualSize);
-                    return true;
+                    return source.AsSpan().TryCopyTo(output);
                 }
 
                 return false;
@@ -293,15 +290,15 @@ namespace TinyIndex.Tests
     public class CompoundTypeSerializer : IConstSizeSerializer<CompoundType>
     {
         public int ElementSize => 4 + 8 + 32;
-        public CompoundType Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+        public CompoundType Deserialize(ReadOnlySpan<byte> input)
         {
-            if (sourceBufferLength < ElementSize)
+            if (input.Length < ElementSize)
             {
                 throw new InvalidDataException();
             }
 
             var buff = new byte[ElementSize];
-            Array.Copy(sourceBuffer, sourceBufferOffset, buff, 0, ElementSize);
+            input.Slice(0, ElementSize).CopyTo(buff.AsSpan());
             var result = new CompoundType();
             using (var memoryStream = new MemoryStream(buff))
             using (var binaryReader = new BinaryReader(memoryStream))
@@ -313,14 +310,8 @@ namespace TinyIndex.Tests
             return result;
         }
 
-        public bool TrySerialize(CompoundType element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength, out int actualSize)
+        public bool TrySerialize(CompoundType element, Span<byte> output, out int actualSize)
         {
-            if (destinationBufferLength < ElementSize)
-            {
-                actualSize = 0;
-                return false;
-            }
-
             var buff = new byte[ElementSize];
             using (var memoryStream = new MemoryStream(buff))
             using (var binaryWriter = new BinaryWriter(memoryStream))
@@ -330,9 +321,14 @@ namespace TinyIndex.Tests
                 binaryWriter.Write(element.C);
             }
 
-            Array.Copy(buff, 0, destinationBuffer, destinationBufferOffset, ElementSize);
-            actualSize = ElementSize;
-            return true;
+            if (buff.AsSpan().TryCopyTo(output))
+            {
+                actualSize = ElementSize;
+                return true;
+            }
+
+            actualSize = 0;
+            return false;
         }
     }
 
@@ -340,25 +336,24 @@ namespace TinyIndex.Tests
     {
         public int ElementSize => sizeof(int);
 
-        public int Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength)
+        public int Deserialize(ReadOnlySpan<byte> input)
         {
-            if (sourceBufferLength < ElementSize)
+            if (input.Length < ElementSize)
                 throw new InvalidDataException();
-            return BitConverter.ToInt32(sourceBuffer, sourceBufferOffset);
+            return BitConverter.ToInt32(input.Slice(0, 4).ToArray(), 0);
         }
 
-        public bool TrySerialize(int element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength, out int actualSize)
+        public bool TrySerialize(int element, Span<byte> output, out int actualSize)
         {
-            if (destinationBufferLength < ElementSize)
+            var bytes = BitConverter.GetBytes(element);
+            if (bytes.AsSpan().TryCopyTo(output))
             {
-                actualSize = 0;
-                return false;
+                actualSize = ElementSize;
+                return true;
             }
 
-            var bytes = BitConverter.GetBytes(element);
-            Array.Copy(bytes, 0, destinationBuffer, destinationBufferOffset, ElementSize);
-            actualSize = ElementSize;
-            return true;
+            actualSize = 0;
+            return false;
         }
     }
 

@@ -1,8 +1,10 @@
-﻿namespace TinyIndex
+﻿using System;
+
+namespace TinyIndex
 {
     public interface ISerializer<T>
     {
-        T Deserialize(byte[] sourceBuffer, int sourceBufferOffset, int sourceBufferLength);
+        T Deserialize(ReadOnlySpan<byte> input);
 
         // serialize to the destination buffer
         // method should return true if the serialization succeeded,
@@ -12,6 +14,6 @@
         // about the content of destinationBuffer[destinationBufferOffset .. destinationBufferOffset + destinationBufferLength]
         // and assume nothing about the contents of actualSize
         // the serialization shall not fail for any other reason
-        bool TrySerialize(T element, byte[] destinationBuffer, int destinationBufferOffset, int destinationBufferLength, out int actualSize);
+        bool TrySerialize(T element, Span<byte> output, out int actualSize);
     }
 }

@@ -211,7 +211,7 @@ namespace TinyIndex
                 foreach (var element in elementsEnumerable)
                 {
                     int actualLength;
-                    while (!serializer.TrySerialize(element, buffer, 0, buffer.Length, out actualLength))
+                    while (!serializer.TrySerialize(element, buffer.AsSpan(), out actualLength))
                     {
                         Utility.Reallocate(ref buffer);
                     }
@@ -290,7 +290,7 @@ namespace TinyIndex
                     elementsEnumerable = elementsEnumerable.OrderBy(selector, comparer);
                 foreach (var element in elementsEnumerable)
                 {
-                    serializer.TrySerialize(element, buffer, 0, elementLength, out _);
+                    serializer.TrySerialize(element, buffer.AsSpan(), out _);
                     stream.Write(buffer, 0, elementLength);
                     elementCount++;
                 }
