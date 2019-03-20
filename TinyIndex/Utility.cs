@@ -56,44 +56,64 @@ namespace TinyIndex
             Array.Resize(ref buffer, newSize);
         }
 
-        internal static (T elementStart, long start, long endExclusive) EqualRange<T, TKey>(
+        internal static (long start, long endExclusive) EqualRange<T, TKey>(
             LookupFunc<T> lookup, 
             long len,
             TKey lookupKey,
             Func<T, TKey> selector,
             IComparer<TKey> comparer)
         {
+            return (LowerBound(lookup, len, lookupKey, selector, comparer),
+                UpperBound(lookup, len, lookupKey, selector, comparer));
+        }
+
+
+        private static long LowerBound<T, TKey>(LookupFunc<T> lookup, long len, TKey lookupKey, Func<T, TKey> selector, IComparer<TKey> comparer)
+        {
             long left = 0;
-            long leftMost = left;
-            long right = len - 1;
-            long rightMost = right;
-            T record = default(T);
+            long right = len;
             var buffer = new byte[sizeof(long)];
             while (left < right)
             {
                 var m = GetMidpoint(left, right);
-                record = lookup(m, ref buffer);
+                var record = lookup(m, ref buffer);
                 var recordKey = selector(record);
-                var result = comparer.Compare(recordKey, lookupKey);
-                if (result < 0)
+                switch (comparer.Compare(recordKey, lookupKey))
                 {
-                    left = m + 1;
-                    leftMost = m + 1;
-                }
-
-                if (result <= 0)
-                {
-                    left = m + 1;
-                    rightMost = m + 1;
-                }
-
-                if (result > 0)
-                {
-                    right = m - 1;
+                    case var x when x < 0:
+                        left = m + 1;
+                        break;
+                    default:
+                        right = m;
+                        break;
                 }
             }
 
-            return (record, leftMost, rightMost - 1);
+            return left;
+        }
+
+        private static long UpperBound<T, TKey>(LookupFunc<T> lookup, long len, TKey lookupKey, Func<T, TKey> selector, IComparer<TKey> comparer)
+        {
+            long left = 0;
+            long right = len;
+            var buffer = new byte[sizeof(long)];
+            while (left < right)
+            {
+                var m = GetMidpoint(left, right);
+                var record = lookup(m, ref buffer);
+                var recordKey = selector(record);
+                switch (comparer.Compare(recordKey, lookupKey))
+                {
+                    case var x when x <= 0:
+                        left = m + 1;
+                        break;
+                    default:
+                        right = m;
+                        break;
+                }
+            }
+
+            return left;
         }
 
         public static (T element, long id) BinarySearch<T, TKey>(LookupFunc<T> lookup, long len, TKey lookupKey, Func<T, TKey> selector, IComparer<TKey> comparer)

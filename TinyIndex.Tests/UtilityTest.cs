@@ -27,7 +27,7 @@ namespace TinyIndex.Tests
         private static (int b, int e) EqualRange(int key)
         {
             var buf = Array.Empty<byte>();
-            (int x, long b, long e) = Utility.EqualRange(
+            (long b, long e) = Utility.EqualRange(
                 (long id, ref byte[] buffer) => testData[(int)id],
                 testData.Count,
                 key,
@@ -41,7 +41,12 @@ namespace TinyIndex.Tests
         {
             Assert.AreEqual((2, 4), EqualRange(4));
             ;
-            ;
+            Assert.AreEqual((0, 0), EqualRange(-1));
+            Assert.AreEqual((0, 1), EqualRange(0));
+            Assert.AreEqual((testData.Count-2, testData.Count), EqualRange(499999));
+            Assert.AreEqual((testData.Count, testData.Count), EqualRange(7499999));
+
+
         }
     }
 }
