@@ -43,6 +43,7 @@ namespace TinyIndex
             }
         }
 
+        // this relies the collection is sorted on TKey
         public (T element, long id) BinarySearch<TKey>(TKey lookupKey, Func<T, TKey> selector, IComparer<TKey> comparer)
         {
             return Utility.BinarySearch(
@@ -51,6 +52,15 @@ namespace TinyIndex
                 lookupKey,
                 selector,
                 comparer);
+        }
+
+        // this relies the collection is sorted on TKey
+        public (long idStart, long idEndExclusive) EqualRange<TKey>(
+            TKey lookupKey,
+            Func<T, TKey> selector,
+            IComparer<TKey> comparer)
+        {
+            return Utility.EqualRange(ReadRecordWithId, header.RecordCount, lookupKey, selector, comparer);
         }
 
         public IEnumerable<T> GetIdRange(long idStart, long idEnd)
