@@ -31,6 +31,11 @@ namespace TinyIndex
                     throw new InvalidDataException();
                 }
             }
+            catch (EndOfStreamException)
+            {
+                stream.Dispose();
+                throw new InvalidDataException();
+            }
             catch
             {
                 stream.Dispose();
