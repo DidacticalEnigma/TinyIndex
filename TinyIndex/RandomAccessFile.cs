@@ -27,7 +27,7 @@ namespace TinyIndex
 
         public RandomAccessFile(Func<Stream> streamFactory)
         {
-            this.stream = streamFactory();
+            stream = streamFactory();
             this.streamFactory = streamFactory;
         }
 

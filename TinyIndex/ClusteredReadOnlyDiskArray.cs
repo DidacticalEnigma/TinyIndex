@@ -97,7 +97,7 @@ namespace TinyIndex
             this.header = header;
             this.file = file;
             this.serializer = serializer;
-            this.recordLength = GetRecordLength(header);
+            recordLength = GetRecordLength(header);
         }
     }
 }
