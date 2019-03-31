@@ -74,7 +74,7 @@ namespace TinyIndex
 
         internal Database(Func<Stream> streamFactory, IReadOnlyList<ArrayHeader> headers)
         {
-            this.file = new RandomAccessFile(streamFactory);
+            file = new RandomAccessFile(streamFactory);
             this.headers = headers;
         }
 

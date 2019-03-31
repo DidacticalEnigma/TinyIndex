@@ -77,7 +77,7 @@ namespace TinyIndex
             for (long i = idStart; i < idEnd; ++i)
             {
                 yield return ReadRecordAtOffset(current, ref buffer, out var length);
-                current += sizeof(int) + length;;
+                current += sizeof(int) + length;
             }
         }
 
@@ -103,7 +103,7 @@ namespace TinyIndex
             this.serializer = serializer;
             var buffer = new byte[sizeof(long)];
             file.ReadAt(header.StartsAt, buffer, 0, buffer.Length);
-            this.pointersStartsAt = header.StartsAt + BitConverter.ToInt64(buffer, 0);
+            pointersStartsAt = header.StartsAt + BitConverter.ToInt64(buffer, 0);
 
         }
     }

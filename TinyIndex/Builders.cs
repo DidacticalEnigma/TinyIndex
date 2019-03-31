@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Threading;
 
 namespace TinyIndex
 {
@@ -332,7 +328,7 @@ namespace TinyIndex
 
         internal DatabaseCreationOrOpenBuilder(Stream stream, Func<Stream> streamFactory, Guid versionCheck)
         {
-            this.builder = new DatabaseOpeningBuilder(stream, streamFactory, versionCheck);
+            builder = new DatabaseOpeningBuilder(stream, streamFactory, versionCheck);
         }
 
         public override DatabaseBuilder AddArray<T, TKey>(
