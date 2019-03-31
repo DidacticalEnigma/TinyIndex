@@ -28,7 +28,7 @@ namespace TinyIndex
 
         private long OffsetFromId(long id, ref byte[] buffer)
         {
-            file.ReadAt(pointersStartsAt + id * sizeof(long), buffer, 0, buffer.Length);
+            file.ReadAt(pointersStartsAt + id * sizeof(long), buffer, 0, sizeof(long));
             return BitConverter.ToInt64(buffer, 0);
         }
 

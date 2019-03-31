@@ -106,6 +106,31 @@ namespace TinyIndex.Tests
         }
 
         [Test]
+        public void TestBounds()
+        {
+            var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
+            File.Delete(path);
+            var random = new Random(42);
+            var list = new List<string>();
+            for (int i = 0; i < 500; ++i)
+            {
+                list.Add(random.Next(0, 1000000000).ToString("D30"));
+            }
+
+            list.Sort();
+            var db = Database.CreateOrOpen(path, Guid.Empty)
+                .AddIndirectArray(Serializer.ForStringAsUTF8(), () => list, x => x)
+                .Build();
+            using (db)
+            {
+                var intArr = db.Get<string>(0);
+                Assert.AreEqual((499, 499), intArr.EqualRange("000000000000000000000994449562", x => x));
+                CollectionAssert.AreEqual(intArr.LinearScan(), list.OrderBy(x => x));
+            }
+            File.Delete(path);
+        }
+
+        [Test]
         public void ComplexTest()
         {
             var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
