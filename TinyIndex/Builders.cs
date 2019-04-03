@@ -207,8 +207,6 @@ namespace TinyIndex
                 // TODO: less lazy way
                 var offsetList = new List<long>();
                 var elementsEnumerable = elements(db);
-                if (comparer != null)
-                    elementsEnumerable = elementsEnumerable.OrderBy(selector, comparer);
                 foreach (var element in elementsEnumerable)
                 {
                     int actualLength;
@@ -239,6 +237,17 @@ namespace TinyIndex
                 stream.Write(arrayHeader.AsBytes());
                 stream.Write(BitConverter.GetBytes(pointerArrayPosition - pointersArrayOffsetPosition));
 
+                if(comparer != null)
+                {
+                    offsetList.Sort((l, r) =>
+                    {
+                        return comparer.Compare(
+                            selector(ReadRecordAtOffset(l, ref buffer, out _)),
+                            selector(ReadRecordAtOffset(r, ref buffer, out _)));
+                    });
+                }
+
+
                 stream.Seek(pointerArrayPosition, SeekOrigin.Begin);
                 foreach (var off in offsetList)
                 {
@@ -246,6 +255,18 @@ namespace TinyIndex
                 }
                 stream.Seek(pastEndPosition, SeekOrigin.Begin);
                 headers.Add(arrayHeader);
+
+                T ReadRecordAtOffset(long offset, ref byte[] b, out int length)
+                {
+                    stream.Seek(dataStartPosition + offset, SeekOrigin.Begin);
+                    stream.ReadFully(b, 0, sizeof(int));
+                    var len = BitConverter.ToInt32(b, 0);
+                    Utility.EnsureArrayOfMinimalSize(ref b, len);
+                    stream.Seek(dataStartPosition + offset + sizeof(int), SeekOrigin.Begin);
+                    stream.ReadFully(b, 0, len);
+                    length = len;
+                    return serializer.Deserialize(b.AsSpan().Slice(0, len));
+                }
             }
             catch
             {
@@ -333,7 +354,7 @@ namespace TinyIndex
             this.versionCheck = versionCheck;
             buffer = new byte[8192];
             headers = new List<ArrayHeader>();
-            stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
+            stream = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
             db = new Database(() => Database.Open(FileShare.ReadWrite | FileShare.Delete, path), headers);
             try
             {
