@@ -104,7 +104,6 @@ namespace TinyIndex
             var buffer = new byte[sizeof(long)];
             file.ReadAt(header.StartsAt, buffer, 0, buffer.Length);
             pointersStartsAt = header.StartsAt + BitConverter.ToInt64(buffer, 0);
-
         }
     }
 }

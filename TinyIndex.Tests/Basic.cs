@@ -18,9 +18,9 @@ namespace TinyIndex.Tests
         {
             var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
             File.Delete(path);
-            using (var db = Database.CreateOrOpen(path, Guid.Empty).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
+            using (var database = Database.CreateOrOpen(path, Guid.Empty).AddArray(new IntSerializer(), db => new[] { 1, 2, 3 }).Build())
             {
-                var intArr = db.Get<int>(0);
+                var intArr = database.Get<int>(0);
                 Assert.AreEqual(intArr[1], 2);
                 CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3 });
             }
@@ -39,14 +39,14 @@ namespace TinyIndex.Tests
                 new CompoundType {A = 1337, B = "John Matrix", C = 1000},
                 new CompoundType {A = 1337, B = @"Major Alan ""Dutch"" Schaefer", C = 32},
             };
-            var db = Database.CreateOrOpen(path, Guid.Empty)
-                .AddArray(new CompoundTypeSerializer(), () => actual)
-                .AddArray(new IntSerializer(), () => new[] { 1, 2, 3, 4, 5 })
+            var database = Database.CreateOrOpen(path, Guid.Empty)
+                .AddArray(new CompoundTypeSerializer(), db => actual)
+                .AddArray(new IntSerializer(), db => new[] { 1, 2, 3, 4, 5 })
                 .Build();
-            using (db)
+            using (database)
             {
-                var compArr = db.Get<CompoundType>(0);
-                var intArr = db.Get<int>(1);
+                var compArr = database.Get<CompoundType>(0);
+                var intArr = database.Get<int>(1);
                 Assert.AreEqual(compArr[2].B, "John Matrix");
                 CollectionAssert.AreEqual(compArr.LinearScan(), actual);
                 Assert.AreEqual(intArr[1], 2);
@@ -66,12 +66,12 @@ namespace TinyIndex.Tests
                 "super long text abcdefghijklmnopqrstuvwxyz",
 
             };
-            var db = Database.CreateOrOpen(path, Guid.Empty)
-                .AddIndirectArray(new StringSerializer(), () => actual)
+            var database = Database.CreateOrOpen(path, Guid.Empty)
+                .AddIndirectArray(new StringSerializer(), db => actual)
                 .Build();
-            using (db)
+            using (database)
             {
-                var compArr = db.Get<string>(0);
+                var compArr = database.Get<string>(0);
                 Assert.AreEqual("hello", compArr[0]);
                 CollectionAssert.AreEqual(compArr.LinearScan(), actual);
                 Assert.AreEqual("super long text abcdefghijklmnopqrstuvwxyz", compArr[1]);
@@ -90,12 +90,12 @@ namespace TinyIndex.Tests
             {
                 list.Add(random.Next(0, 1000000000));
             }
-            var db = Database.CreateOrOpen(path, Guid.Empty)
-                .AddArray(new IntSerializer(), () => list, Comparer<int>.Default)
+            var database = Database.CreateOrOpen(path, Guid.Empty)
+                .AddArray(new IntSerializer(), db => list, Comparer<int>.Default)
                 .Build();
-            using (db)
+            using (database)
             {
-                var intArr = db.Get<int>(0);
+                var intArr = database.Get<int>(0);
                 Assert.AreEqual(0, intArr.BinarySearch(1739, x => x).id);
                 Assert.AreEqual(23, intArr.BinarySearch(46639, x => x).id);
                 Assert.AreEqual(22, intArr.BinarySearch(43700, x => x).id);
@@ -118,12 +118,12 @@ namespace TinyIndex.Tests
             }
 
             list.Sort();
-            var db = Database.CreateOrOpen(path, Guid.Empty)
-                .AddIndirectArray(Serializer.ForStringAsUTF8(), () => list, x => x)
+            var database = Database.CreateOrOpen(path, Guid.Empty)
+                .AddIndirectArray(Serializer.ForStringAsUTF8(), db => list, x => x)
                 .Build();
-            using (db)
+            using (database)
             {
-                var intArr = db.Get<string>(0);
+                var intArr = database.Get<string>(0);
                 Assert.AreEqual((499, 499), intArr.EqualRange("000000000000000000000994449562", x => x));
                 CollectionAssert.AreEqual(intArr.LinearScan(), list.OrderBy(x => x));
             }
@@ -143,34 +143,62 @@ namespace TinyIndex.Tests
             }
 
             {
-                var db = Database.CreateOrOpen(path, Guid.Empty)
-                    .AddIndirectArray(new IntSerializer(), () => list, Comparer<int>.Default)
+                var database = Database.CreateOrOpen(path, Guid.Empty)
+                    .AddIndirectArray(new IntSerializer(), db => list, Comparer<int>.Default)
                     .AddIndirectArray(new CompoundTypeSerializer(),
-                        () => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
-                    .AddIndirectArray(new IntSerializer(), () => list, Comparer<int>.Default)
+                        db => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
+                    .AddIndirectArray(new IntSerializer(), db => list, Comparer<int>.Default)
                     .AddIndirectArray(new CompoundTypeSerializer(),
-                        () => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
+                        db => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
                     .Build();
-                using (db)
+                using (database)
                 {
-                    var intArr = db.Get<int>(2);
+                    var intArr = database.Get<int>(2);
                     CollectionAssert.AreEqual(intArr.LinearScan(), list.OrderBy(x => x));
                 }
             }
             {
-                var db = Database.CreateOrOpen(path, Guid.Empty)
-                    .AddIndirectArray(new IntSerializer(), () => list, Comparer<int>.Default)
+                var database = Database.CreateOrOpen(path, Guid.Empty)
+                    .AddIndirectArray(new IntSerializer(), db => list, Comparer<int>.Default)
                     .AddIndirectArray(new CompoundTypeSerializer(),
-                        () => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
-                    .AddIndirectArray(new IntSerializer(), () => list, Comparer<int>.Default)
+                        db => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
+                    .AddIndirectArray(new IntSerializer(), db => list, Comparer<int>.Default)
                     .AddIndirectArray(new CompoundTypeSerializer(),
-                        () => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
+                        db => new[] {new CompoundType() {A = 42, B = "lowewesdfsfd", C = 69}})
                     .Build();
-                using (db)
+                using (database)
                 {
-                    var intArr = db.Get<int>(2);
+                    var intArr = database.Get<int>(2);
                     CollectionAssert.AreEqual(intArr.LinearScan(), list.OrderBy(x => x));
                 }
+            }
+            File.Delete(path);
+        }
+
+
+        [Test]
+        public void AccessingEarlierArrays()
+        {
+            var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
+            File.Delete(path);
+            var random = new Random(42);
+            var list = new List<string>();
+            for (int i = 0; i < 500; ++i)
+            {
+                list.Add(random.Next(0, 1000000000).ToString());
+            }
+
+            list.Sort();
+            var database = Database.CreateOrOpen(path, Guid.Empty)
+                .AddIndirectArray(Serializer.ForStringAsUTF8(), db => list, x => x)
+                .AddIndirectArray(Serializer.ForInt(), db => db.Get<string>(0).LinearScan().Select(x => int.Parse(x)))
+                .Build();
+            using (database)
+            {
+                var stringArray = database.Get<string>(0);
+                var intArray = database.Get<int>(1);
+                Assert.AreEqual("827125636", stringArray[400]);
+                Assert.AreEqual(827125636, intArray[400]);
             }
             File.Delete(path);
         }
@@ -182,35 +210,35 @@ namespace TinyIndex.Tests
             var b = Guid.NewGuid();
             var path = Path.Combine(Path.GetTempPath(), @"asdf.db");
             File.Delete(path);
-            using (var db = Database.CreateOrOpen(path, Guid.NewGuid()).AddArray(new IntSerializer(), () => new[] { 4, 5, 6 }).Build())
+            using (var database = Database.CreateOrOpen(path, Guid.NewGuid()).AddArray(new IntSerializer(), db => new[] { 4, 5, 6 }).Build())
             {
-                var intArr = db.Get<int>(0);
+                var intArr = database.Get<int>(0);
                 Assert.AreEqual(intArr[1], 5);
                 CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 4, 5, 6 });
             }
-            using (var db = Database.CreateOrOpen(path, a).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
+            using (var database = Database.CreateOrOpen(path, a).AddArray(new IntSerializer(), db => new[] { 1, 2, 3 }).Build())
             {
-                var intArr = db.Get<int>(0);
+                var intArr = database.Get<int>(0);
                 Assert.AreEqual(intArr[1], 2);
                 CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3 });
             }
-            using (var db = Database.CreateOrOpen(path, a).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
+            using (var database = Database.CreateOrOpen(path, a).AddArray(new IntSerializer(), db => new[] { 1, 2, 3 }).Build())
             {
-                var intArr = db.Get<int>(0);
+                var intArr = database.Get<int>(0);
                 Assert.AreEqual(intArr[1], 2);
                 CollectionAssert.AreEqual(intArr.LinearScan(), new[] { 1, 2, 3 });
             }
 
             try
             {
-                using (var db = Database.CreateOrOpen(path, b)
-                    .AddArray(new IntSerializer(), () => new []{42, 43, 44})
+                using (var database = Database.CreateOrOpen(path, b)
+                    .AddArray(new IntSerializer(), db => new []{42, 43, 44})
                     .AddArray(new IntSerializer(), Sequence).Build())
                 {
                     
                 }
 
-                IEnumerable<int> Sequence()
+                IEnumerable<int> Sequence(Database db)
                 {
                     yield return 42;
                     throw new Exception();
@@ -221,15 +249,15 @@ namespace TinyIndex.Tests
                 // by design of the test
             }
 
-            using (var db = Database.CreateOrOpen(path, b).AddArray(new IntSerializer(), () => new[] { 1, 2, 3 }).Build())
+            using (var database = Database.CreateOrOpen(path, b).AddArray(new IntSerializer(), db => new[] { 1, 2, 3 }).Build())
             {
-                var intArr = db.Get<int>(0);
+                var intArr = database.Get<int>(0);
                 Assert.AreEqual(2, intArr[1]);
                 CollectionAssert.AreEqual(new[] { 1, 2, 3 }, intArr.LinearScan());
             }
-            using (var db = Database.Open(path, b).AddArray(new IntSerializer()).Build())
+            using (var database = Database.Open(path, b).AddArray(new IntSerializer()).Build())
             {
-                var intArr = db.Get<int>(0);
+                var intArr = database.Get<int>(0);
                 Assert.AreEqual(2, intArr[1]);
                 CollectionAssert.AreEqual(new[] { 1, 2, 3 }, intArr.LinearScan());
             }

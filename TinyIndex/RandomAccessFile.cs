@@ -21,7 +21,16 @@ namespace TinyIndex
             return s;
         }
 
-        private readonly Stream stream;
+        internal void Reopen()
+        {
+            lock (stream)
+            {
+                stream.Dispose();
+                stream = streamFactory();
+            }
+        }
+
+        private Stream stream;
 
         private readonly Func<Stream> streamFactory;
 

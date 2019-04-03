@@ -63,11 +63,16 @@ namespace TinyIndex
 
         internal static FileStream OpenReadonly(string path)
         {
+            return Open(FileShare.Read, path);
+        }
+
+        internal static FileStream Open(FileShare share, string path)
+        {
             return new FileStream(
                 path,
                 FileMode.Open,
                 FileAccess.Read,
-                FileShare.Read,
+                share,
                 4096,
                 FileOptions.RandomAccess);
         }
