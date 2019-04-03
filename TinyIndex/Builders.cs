@@ -115,68 +115,60 @@ namespace TinyIndex
     {
         public DatabaseBuilder AddArray<T>(
             IConstSizeSerializer<T> serializer,
-            Func<Database, IEnumerable<T>> elements,
-            int cacheSize = 1024)
+            Func<Database, IEnumerable<T>> elements)
         {
-            return AddArray(serializer, elements, x => x, null, cacheSize);
+            return AddArray(serializer, elements, x => x, null);
         }
 
         public DatabaseBuilder AddArray<T, TKey>(
             IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
-            Func<T, TKey> keySelector,
-            int cacheSize = 1024)
+            Func<T, TKey> keySelector)
         {
-            return AddArray(serializer, elements, keySelector, Comparer<TKey>.Default, cacheSize);
+            return AddArray(serializer, elements, keySelector, Comparer<TKey>.Default);
         }
 
         public DatabaseBuilder AddArray<T>(
             IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
-            IComparer<T> comparer,
-            int cacheSize = 1024)
+            IComparer<T> comparer)
         {
-            return AddArray(serializer, elements, x => x, comparer, cacheSize);
+            return AddArray(serializer, elements, x => x, comparer);
         }
 
         public abstract DatabaseBuilder AddArray<T, TKey>(
             IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> keySelector,
-            IComparer<TKey> comparer,
-            int cacheSize = 1024);
+            IComparer<TKey> comparer);
 
         public DatabaseBuilder AddIndirectArray<T>(
             ISerializer<T> serializer,
-            Func<Database, IEnumerable<T>> elements,
-            int cacheSize = 1024)
+            Func<Database, IEnumerable<T>> elements)
         {
-            return AddIndirectArray(serializer, elements, x => x, null, cacheSize);
+            return AddIndirectArray(serializer, elements, x => x, null);
         }
 
         public DatabaseBuilder AddIndirectArray<T>(
             ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
-            IComparer<T> comparer,
-            int cacheSize = 1024)
+            IComparer<T> comparer)
         {
-            return AddIndirectArray(serializer, elements, x => x, comparer, cacheSize);
+            return AddIndirectArray(serializer, elements, x => x, comparer);
         }
 
         public DatabaseBuilder AddIndirectArray<T, TKey>(
             ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
-            Func<T, TKey> keySelector,
-            int cacheSize = 1024)
+            Func<T, TKey> keySelector)
         {
-            return AddIndirectArray(serializer, elements, keySelector, Comparer<TKey>.Default, cacheSize);
+            return AddIndirectArray(serializer, elements, keySelector, Comparer<TKey>.Default);
         }
 
         public abstract DatabaseBuilder AddIndirectArray<T, TKey>(ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> selector,
-            IComparer<TKey> comparer,
-            int cacheSize = 1024);
+            IComparer<TKey> comparer);
 
         internal abstract Database Finish();
 
@@ -198,12 +190,10 @@ namespace TinyIndex
         public override DatabaseBuilder AddIndirectArray<T, TKey>(ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> selector,
-            IComparer<TKey> comparer,
-            int cacheSize = 1024)
+            IComparer<TKey> comparer)
         {
             try
             {
-                ICache<long, T> cache = new LruCache<long, T>(cacheSize);
                 var headerPosition = stream.Position;
                 // write a dummy header
                 var dummyHeaderBytes = new ArrayHeader().AsBytes();
@@ -217,6 +207,8 @@ namespace TinyIndex
                 // TODO: less lazy way
                 var offsetList = new List<long>();
                 var elementsEnumerable = elements(db);
+                if (comparer != null)
+                    elementsEnumerable = elementsEnumerable.OrderBy(selector, comparer);
                 foreach (var element in elementsEnumerable)
                 {
                     int actualLength;
@@ -247,17 +239,6 @@ namespace TinyIndex
                 stream.Write(arrayHeader.AsBytes());
                 stream.Write(BitConverter.GetBytes(pointerArrayPosition - pointersArrayOffsetPosition));
 
-                if(comparer != null)
-                {
-                    offsetList.Sort((l, r) =>
-                    {
-                        return comparer.Compare(
-                            selector(ReadCache(l)),
-                            selector(ReadCache(r)));
-                    });
-                }
-
-
                 stream.Seek(pointerArrayPosition, SeekOrigin.Begin);
                 foreach (var off in offsetList)
                 {
@@ -265,25 +246,6 @@ namespace TinyIndex
                 }
                 stream.Seek(pastEndPosition, SeekOrigin.Begin);
                 headers.Add(arrayHeader);
-
-
-                T ReadCache(long o)
-                {
-                    return cache.Get(o, () => ReadRecordAtOffset(o, ref buffer, out _));
-
-                    T ReadRecordAtOffset(long offset, ref byte[] b, out int length)
-                    {
-                        stream.Seek(dataStartPosition + offset, SeekOrigin.Begin);
-                        stream.ReadFully(b, 0, sizeof(int));
-                        var len = BitConverter.ToInt32(b, 0);
-                        Utility.EnsureArrayOfMinimalSize(ref b, len);
-                        stream.Seek(dataStartPosition + offset + sizeof(int), SeekOrigin.Begin);
-                        stream.ReadFully(b, 0, len);
-                        length = len;
-                        return serializer.Deserialize(b.AsSpan().Slice(0, len));
-                    }
-                }
-                
             }
             catch
             {
@@ -319,8 +281,7 @@ namespace TinyIndex
             IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> selector,
-            IComparer<TKey> comparer,
-            int cacheSize = 1024)
+            IComparer<TKey> comparer)
         {
             try
             {
@@ -372,7 +333,7 @@ namespace TinyIndex
             this.versionCheck = versionCheck;
             buffer = new byte[8192];
             headers = new List<ArrayHeader>();
-            stream = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
+            stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
             db = new Database(() => Database.Open(FileShare.ReadWrite | FileShare.Delete, path), headers);
             try
             {
@@ -399,8 +360,7 @@ namespace TinyIndex
         public override DatabaseBuilder AddArray<T, TKey>(IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> selector,
-            IComparer<TKey> comparer,
-            int cacheSize = 1024)
+            IComparer<TKey> comparer)
         {
             builder.AddArray(serializer);
             return this;
@@ -409,8 +369,7 @@ namespace TinyIndex
         public override DatabaseBuilder AddIndirectArray<T, TKey>(ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> selector,
-            IComparer<TKey> comparer,
-            int cacheSize = 1024)
+            IComparer<TKey> comparer)
         {
             builder.AddIndirectArray(serializer);
             return this;
