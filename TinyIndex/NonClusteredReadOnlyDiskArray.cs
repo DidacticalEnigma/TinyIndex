@@ -9,6 +9,7 @@ namespace TinyIndex
         private ISerializer<T> serializer;
         private RandomAccessFile file;
         private long pointersStartsAt;
+        private ICache<long, T> cache;
 
         private T ReadRecordAtOffset(long offset, ref byte[] buffer, out int length)
         {
@@ -20,10 +21,24 @@ namespace TinyIndex
             return serializer.Deserialize(buffer.AsSpan().Slice(0, len));
         }
 
-        private T ReadRecordWithId(long id, ref byte[] buffer)
+        private T UncachedReadRecordWithId(long id, ref byte[] buffer)
         {
             var offset = OffsetFromId(id, ref buffer);
             return ReadRecordAtOffset(DataStartOffset + offset, ref buffer, out _);
+        }
+
+        private T ReadRecordWithId(long id, ref byte[] buffer)
+        {
+            byte[] temp = buffer;
+            var result = cache.Get(id, () =>
+            {
+                byte[] t = temp;
+                var r = UncachedReadRecordWithId(id, ref t);
+                temp = t;
+                return r;
+            });
+            buffer = temp;
+            return result;
         }
 
         private long OffsetFromId(long id, ref byte[] buffer)
@@ -96,7 +111,7 @@ namespace TinyIndex
 
         private long DataStartOffset => header.StartsAt + sizeof(long);
 
-        internal NonClusteredReadOnlyDiskArray(ArrayHeader header, RandomAccessFile file, ISerializer<T> serializer)
+        internal NonClusteredReadOnlyDiskArray(ArrayHeader header, RandomAccessFile file, ISerializer<T> serializer, ICache<long, T> cache = null)
         {
             this.header = header;
             this.file = file;
@@ -104,6 +119,7 @@ namespace TinyIndex
             var buffer = new byte[sizeof(long)];
             file.ReadAt(header.StartsAt, buffer, 0, buffer.Length);
             pointersStartsAt = header.StartsAt + BitConverter.ToInt64(buffer, 0);
+            this.cache = cache ?? new NoCache<long, T>();
         }
     }
 }

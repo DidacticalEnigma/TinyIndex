@@ -18,15 +18,15 @@ namespace TinyIndex
         private readonly IReadOnlyList<ArrayHeader> headers;
         private readonly RandomAccessFile file;
 
-        public IReadOnlyDiskArray<T> Get<T>(int collectionNumber)
+        public IReadOnlyDiskArray<T> Get<T>(int collectionNumber, ICache<long, T> cache = null)
         {
             var header = headers[collectionNumber];
             switch (header.Type)
             {
                 case 1:
-                    return new ClusteredReadOnlyDiskArray<T>(header, file, (IConstSizeSerializer<T>) header.Serializer);
+                    return new ClusteredReadOnlyDiskArray<T>(header, file, (IConstSizeSerializer<T>) header.Serializer, cache);
                 case 2:
-                    return new NonClusteredReadOnlyDiskArray<T>(header, file, (ISerializer<T>)header.Serializer);
+                    return new NonClusteredReadOnlyDiskArray<T>(header, file, (ISerializer<T>)header.Serializer, cache);
                 default:
                     throw new InvalidDataException();
             }

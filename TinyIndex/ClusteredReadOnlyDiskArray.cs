@@ -9,6 +9,7 @@ namespace TinyIndex
         private readonly RandomAccessFile file;
         private readonly ISerializer<T> serializer;
         private readonly int recordLength;
+        private ICache<long, T> cache;
 
         internal static int GetRecordLength(ArrayHeader header)
         {
@@ -18,10 +19,24 @@ namespace TinyIndex
             return (int)len;
         }
 
-        private T ReadRecordWithId(long id, ref byte[] buffer)
+        private T UncachedReadRecordWithId(long id, ref byte[] buffer)
         {
             file.ReadAt(header.StartsAt + id * recordLength, buffer, 0, recordLength);
             return serializer.Deserialize(buffer.AsSpan().Slice(0, recordLength));
+        }
+
+        private T ReadRecordWithId(long id, ref byte[] buffer)
+        {
+            byte[] temp = buffer;
+            var result = cache.Get(id, () =>
+            {
+                byte[] t = temp;
+                var r = UncachedReadRecordWithId(id, ref t);
+                temp = t;
+                return r;
+            });
+            buffer = temp;
+            return result;
         }
 
         public T this[long id]
@@ -92,12 +107,13 @@ namespace TinyIndex
 
         public long Count => header.RecordCount;
 
-        internal ClusteredReadOnlyDiskArray(ArrayHeader header, RandomAccessFile file, ISerializer<T> serializer)
+        internal ClusteredReadOnlyDiskArray(ArrayHeader header, RandomAccessFile file, ISerializer<T> serializer, ICache<long, T> cache = null)
         {
             this.header = header;
             this.file = file;
             this.serializer = serializer;
             recordLength = GetRecordLength(header);
+            this.cache = cache ?? new NoCache<long, T>();
         }
     }
 }
