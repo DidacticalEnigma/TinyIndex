@@ -60,11 +60,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Basic.cs" />
-    <Compile Include="LayoutTest.cs" />
-    <Compile Include="SerializersTest.cs" />
+    <Compile Include="..\TinyIndex.Tests.NetCore\Basic.cs">
+      <Link>Basic.cs</Link>
+    </Compile>
+    <Compile Include="..\TinyIndex.Tests.NetCore\LayoutTest.cs">
+      <Link>LayoutTest.cs</Link>
+    </Compile>
+    <Compile Include="..\TinyIndex.Tests.NetCore\SerializersTest.cs">
+      <Link>SerializersTest.cs</Link>
+    </Compile>
+    <Compile Include="..\TinyIndex.Tests.NetCore\UtilityTest.cs">
+      <Link>UtilityTest.cs</Link>
+    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="UtilityTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TinyIndex\TinyIndex.csproj">
