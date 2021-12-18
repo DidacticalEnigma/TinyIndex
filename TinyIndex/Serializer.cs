@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Runtime.Serialization;
 using System.Text;
 using System.Text.Json;
 
@@ -19,13 +18,12 @@ namespace TinyIndex
             {
                 if (input.Length < ElementSize)
                     throw new InvalidDataException();
-                return BitConverter.ToInt32(input.Slice(0, 4).ToArray(), 0);
+                return BitConverter.ToInt32(input.Slice(0, 4));
             }
 
             public bool TrySerialize(int element, Span<byte> output, out int actualSize)
             {
-                var bytes = BitConverter.GetBytes(element);
-                if (bytes.AsSpan().TryCopyTo(output))
+                if (BitConverter.TryWriteBytes(output, element))
                 {
                     actualSize = ElementSize;
                     return true;
@@ -51,13 +49,12 @@ namespace TinyIndex
             {
                 if (input.Length < ElementSize)
                     throw new InvalidDataException();
-                return BitConverter.ToInt64(input.Slice(0, 8).ToArray(), 0);
+                return BitConverter.ToInt64(input.Slice(0, 8));
             }
 
             public bool TrySerialize(long element, Span<byte> output, out int actualSize)
             {
-                var bytes = BitConverter.GetBytes(element);
-                if (bytes.AsSpan().TryCopyTo(output))
+                if (BitConverter.TryWriteBytes(output, element))
                 {
                     actualSize = ElementSize;
                     return true;
@@ -110,7 +107,7 @@ namespace TinyIndex
             public static readonly StringSerializer Serializer = new StringSerializer();
         }
 
-        public static ISerializer<string> ForStringAsUTF8()
+        public static ISerializer<string> ForStringAsUtf8()
         {
             return StringSerializer.Serializer;
         }
@@ -184,6 +181,7 @@ namespace TinyIndex
         }
 
         private class TypeErasingSerializer<T> : TypeErasingSerializer
+            where T : notnull
         {
             private readonly ISerializer<T> serializer;
 
@@ -220,7 +218,7 @@ namespace TinyIndex
                     int elementLength;
                     if (!serializers[i].IsConstSize)
                     {
-                        elementLength = BitConverter.ToInt32(input.Slice(0, sizeof(int)).ToArray(), 0);
+                        elementLength = BitConverter.ToInt32(input.Slice(0, sizeof(int)));
                         input = input.Slice(sizeof(int));
                     }
                     else
@@ -248,6 +246,7 @@ namespace TinyIndex
                     var outputLengthBytes = output.Slice(0, Math.Min(start, output.Length));
                     if (serializers[i].TrySerialize(element[i], output.Slice(start), out var actualLength))
                     {
+                        // TODO
                         var lengthBytes = BitConverter.GetBytes(actualLength);
                         lengthBytes.AsSpan().Slice(0, start).TryCopyTo(outputLengthBytes);
                         output = output.Slice(start + actualLength);
@@ -275,18 +274,19 @@ namespace TinyIndex
 
         private class CollectionSerializer<TCollection, TElement> : ISerializer<TCollection>
             where TCollection : IReadOnlyCollection<TElement>
+            where TElement : notnull
         {
             public TCollection Deserialize(ReadOnlySpan<byte> input)
             {
                 var list = new List<TElement>();
-                var length = BitConverter.ToInt32(input.Slice(0, sizeof(int)).ToArray(), 0);
+                var length = BitConverter.ToInt32(input.Slice(0, sizeof(int)));
                 input = input.Slice(sizeof(int));
                 for (int i = 0; i < length; ++i)
                 {
                     int elementLength;
                     if (!isConstSize)
                     {
-                        elementLength = BitConverter.ToInt32(input.Slice(0, sizeof(int)).ToArray(), 0);
+                        elementLength = BitConverter.ToInt32(input.Slice(0, sizeof(int)));
                         input = input.Slice(sizeof(int));
                     }
                     else
@@ -308,8 +308,7 @@ namespace TinyIndex
             {
                 int overallSize = 0;
                 {
-                    var lengthBytes = BitConverter.GetBytes(element.Count);
-                    if (lengthBytes.AsSpan().TryCopyTo(output))
+                    if (BitConverter.TryWriteBytes(output, element.Count))
                     {
                         output = output.Slice(sizeof(int));
                         overallSize += sizeof(int);
@@ -327,8 +326,7 @@ namespace TinyIndex
                     var outputLengthBytes = output.Slice(0, Math.Min(start, output.Length));
                     if (elementSerializer.TrySerialize(e, output.Slice(start), out var actualLength))
                     {
-                        var lengthBytes = BitConverter.GetBytes(actualLength);
-                        lengthBytes.AsSpan().TryCopyTo(outputLengthBytes);
+                        BitConverter.TryWriteBytes(outputLengthBytes, actualLength);
                         output = output.Slice(start + actualLength);
                         overallSize += start + actualLength;
                     }
@@ -369,9 +367,10 @@ namespace TinyIndex
 
         public class CompositeBuilder
         {
-            private List<TypeErasingSerializer> serializers = new List<TypeErasingSerializer>();
+            private readonly List<TypeErasingSerializer> serializers = new List<TypeErasingSerializer>();
 
             public CompositeBuilder With<T>(ISerializer<T> serializer)
+                where T : notnull
             {
                 serializers.Add(new TypeErasingSerializer<T>(serializer));
                 return this;
@@ -394,6 +393,8 @@ namespace TinyIndex
         }
 
         public static ISerializer<(T1, T2)> ForTuple<T1, T2>(ISerializer<T1> s1, ISerializer<T2> s2)
+            where T1 : notnull
+            where T2 : notnull
         {
             return ForComposite()
                 .With(s1)
@@ -405,6 +406,9 @@ namespace TinyIndex
         }
 
         public static ISerializer<(T1, T2, T3)> ForTuple<T1, T2, T3>(ISerializer<T1> s1, ISerializer<T2> s2, ISerializer<T3> s3)
+            where T1 : notnull
+            where T2 : notnull
+            where T3 : notnull
         {
             return ForComposite()
                 .With(s1)
@@ -417,6 +421,10 @@ namespace TinyIndex
         }
 
         public static ISerializer<(T1, T2, T3, T4)> ForTuple<T1, T2, T3, T4>(ISerializer<T1> s1, ISerializer<T2> s2, ISerializer<T3> s3, ISerializer<T4> s4)
+            where T1 : notnull
+            where T2 : notnull
+            where T3 : notnull
+            where T4 : notnull
         {
             return ForComposite()
                 .With(s1)
@@ -433,11 +441,13 @@ namespace TinyIndex
             ISerializer<TElement> elementSerializer,
             Func<IEnumerable<TElement>, TCollection> collectionFactory)
             where TCollection : IReadOnlyCollection<TElement>
+            where TElement : notnull
         {
             return new CollectionSerializer<TCollection, TElement>(elementSerializer, collectionFactory);
         }
 
         public static ISerializer<TElement[]> ForArray<TElement>(ISerializer<TElement> elementSerializer)
+            where TElement : notnull
         {
             return new CollectionSerializer<TElement[], TElement>(
                 elementSerializer,
@@ -445,7 +455,8 @@ namespace TinyIndex
         }
 
         public static ISerializer<IReadOnlyCollection<TElement>> ForReadOnlyCollection<TElement>(
-            ISerializer<TElement> elementSerializer)
+            ISerializer<TElement> elementSerializer)    
+            where TElement : notnull
         {
             return new CollectionSerializer<IReadOnlyCollection<TElement>, TElement>(
                 elementSerializer,
@@ -454,6 +465,7 @@ namespace TinyIndex
 
         public static ISerializer<IReadOnlyList<TElement>> ForReadOnlyList<TElement>(
             ISerializer<TElement> elementSerializer)
+            where TElement : notnull
         {
             return new CollectionSerializer<IReadOnlyList<TElement>, TElement>(
                 elementSerializer,
@@ -461,6 +473,8 @@ namespace TinyIndex
         }
 
         private class MappingSerializer<TFrom, TTo> : ISerializer<TTo>
+            where TFrom : notnull
+            where TTo : notnull
         {
             private readonly ISerializer<TFrom> serializer;
             private readonly Func<TFrom, TTo> toFunc;
@@ -491,12 +505,15 @@ namespace TinyIndex
         }
 
         public static ISerializer<TTo> Mapping<TFrom, TTo>(this ISerializer<TFrom> serializer, Func<TFrom, TTo> toFunc, Func<TTo, TFrom> fromFunc)
+            where TFrom : notnull
+            where TTo : notnull
         {
             return new MappingSerializer<TFrom, TTo>(serializer, toFunc, fromFunc);
         }
 
 
         private class SystemTextJsonSerializer<T> : ISerializer<T>
+            where T : notnull
         {
             private readonly JsonSerializerOptions? options;
 
@@ -510,26 +527,24 @@ namespace TinyIndex
                 Span<byte> output,
                 out int actualSize)
             {
-                using (var memoryStream = new MemoryStream(output.Length))
+                using var memoryStream = new MemoryStream(output.Length);
+                try
                 {
-                    try
+                    JsonSerializer.Serialize(memoryStream, element, options);
+                    var s = (int)memoryStream.Position;
+                    if (memoryStream.GetBuffer().AsSpan().Slice(0, s).TryCopyTo(output))
                     {
-                        JsonSerializer.Serialize(memoryStream, element, options);
-                        var s = (int)memoryStream.Position;
-                        if (memoryStream.GetBuffer().AsSpan().Slice(0, s).TryCopyTo(output))
-                        {
-                            actualSize = s;
-                            return true;
-                        }
+                        actualSize = s;
+                        return true;
+                    }
 
-                        actualSize = 0;
-                        return false;
-                    }
-                    catch (NotSupportedException)
-                    {
-                        actualSize = 0;
-                        return false;
-                    }
+                    actualSize = 0;
+                    return false;
+                }
+                catch (NotSupportedException)
+                {
+                    actualSize = 0;
+                    return false;
                 }
             }
 
@@ -540,11 +555,14 @@ namespace TinyIndex
         }
         
         public static ISerializer<T> SystemTextJson<T>()
+            where T : notnull
         {
             return new SystemTextJsonSerializer<T>();
         }
 
         public static ISerializer<KeyValuePair<TKey, TValue>> ForKeyValuePair<TKey, TValue>(ISerializer<TKey> keySerializer, ISerializer<TValue> valueSerializer)
+            where TKey : notnull
+            where TValue : notnull
         {
             return ForComposite()
                 .With(keySerializer)

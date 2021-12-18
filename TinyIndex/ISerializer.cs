@@ -3,6 +3,7 @@
 namespace TinyIndex
 {
     public interface ISerializer<T>
+        where T : notnull
     {
         T Deserialize(ReadOnlySpan<byte> input);
 

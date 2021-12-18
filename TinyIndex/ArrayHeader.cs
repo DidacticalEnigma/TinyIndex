@@ -4,6 +4,11 @@ namespace TinyIndex
 {
     internal class ArrayHeader
     {
+        public ArrayHeader(object serializer)
+        {
+            this.Serializer = serializer;
+        }
+        
         public long StartsAt { get; set; }
 
         public long EndsAt { get; set; }
@@ -14,7 +19,7 @@ namespace TinyIndex
 
         public long Type { get; set; }
 
-        public object Serializer { get; set; }
+        public object Serializer { get; }
 
         public byte[] AsBytes()
         {

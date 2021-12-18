@@ -11,7 +11,7 @@ namespace TinyIndex.Tests
     {
         private static readonly ISerializer<ComplexComposite> serializer = Serializer.ForComposite()
             .With(Serializer.ForInt())
-            .With(Serializer.ForStringAsUTF8())
+            .With(Serializer.ForStringAsUtf8())
             .With(Serializer.ForLong())
             .With(Serializer.ForArray(Serializer.ForEnum<FileShare>()))
             .Create()
@@ -24,9 +24,9 @@ namespace TinyIndex.Tests
             }, obj => new object[]
             {
                 obj.A,
-                obj.B,
+                obj.B!,
                 obj.C,
-                obj.D
+                obj.D!
             });
 
 
@@ -90,7 +90,7 @@ namespace TinyIndex.Tests
             var original = "織田　信長";
             var expectedByteLength = Encoding.UTF8.GetByteCount(original);
             var buffer = new byte[expectedByteLength + 2];
-            var stringSerializer = Serializer.ForStringAsUTF8();
+            var stringSerializer = Serializer.ForStringAsUtf8();
             for (int i = 0; i < expectedByteLength + 2; ++i)
             {
                 var success = stringSerializer.TrySerialize(original, buffer.AsSpan().Slice(0, i), out var actualSize);
@@ -135,10 +135,10 @@ namespace TinyIndex.Tests
     {
         public int A { get; set; }
 
-        public string B { get; set; }
+        public string? B { get; set; }
 
         public long C { get; set; }
 
-        public FileShare[] D { get; set; }
+        public FileShare[]? D { get; set; }
     }
 }

@@ -18,6 +18,8 @@ namespace TinyIndex
     /// Derived from https://stackoverflow.com/a/3719378/240845
     /// </remarks>
     public class LruCache<TKey, TValue> : ICache<TKey, TValue>
+        where TKey : notnull
+        where TValue : notnull
     {
         private readonly Dictionary<TKey, LinkedListNode<LruCacheItem>> cacheMap =
             new Dictionary<TKey, LinkedListNode<LruCacheItem>>();
@@ -25,7 +27,7 @@ namespace TinyIndex
         private readonly LinkedList<LruCacheItem> lruList =
             new LinkedList<LruCacheItem>();
 
-        private readonly Action<TValue> dispose;
+        private readonly Action<TValue>? dispose;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="LruCache{TKey, TValue}"/>
@@ -37,7 +39,7 @@ namespace TinyIndex
         /// <param name="dispose">
         /// When elements cycle out of the cache, disposes them. May be null.
         /// </param>
-        public LruCache(int capacity, Action<TValue> dispose = null)
+        public LruCache(int capacity, Action<TValue>? dispose = null)
         {
             this.Capacity = capacity;
             this.dispose = dispose;
@@ -66,9 +68,8 @@ namespace TinyIndex
         {
             lock (this.cacheMap)
             {
-                LinkedListNode<LruCacheItem> node;
                 TValue value;
-                if (this.cacheMap.TryGetValue(key, out node))
+                if (this.cacheMap.TryGetValue(key, out var node))
                 {
                     value = node.Value.Value;
                     this.lruList.Remove(node);
@@ -95,7 +96,12 @@ namespace TinyIndex
         private void RemoveFirst()
         {
             // Remove from LRUPriority
-            LinkedListNode<LruCacheItem> node = this.lruList.First;
+            LinkedListNode<LruCacheItem>? node = this.lruList.First;
+            if (node == null)
+            {
+                return;
+            }
+
             this.lruList.RemoveFirst();
 
             // Remove from cache

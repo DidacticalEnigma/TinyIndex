@@ -40,6 +40,7 @@ namespace TinyIndex
         }
 
         public DatabaseOpeningBuilder AddArray<T>(IConstSizeSerializer<T> serializer)
+            where T : notnull
         {
             try
             {
@@ -59,6 +60,7 @@ namespace TinyIndex
         }
 
         public DatabaseOpeningBuilder AddIndirectArray<T>(ISerializer<T> serializer)
+            where T : notnull
         {
             try
             {
@@ -76,9 +78,10 @@ namespace TinyIndex
         }
 
         private ArrayHeader ReadNextHeader<T>(ISerializer<T> serializer)
+            where T : notnull
         {
             var preHeaderPosition = stream.Position;
-            var header = new ArrayHeader();
+            var header = new ArrayHeader(serializer);
             var buffer = new byte[sizeof(long)];
             stream.ReadFully(buffer);
             header.RecordCount = BitConverter.ToInt64(buffer, 0);
@@ -88,7 +91,6 @@ namespace TinyIndex
             header.Type = BitConverter.ToInt64(buffer, 0);
             // TODO: validate header
             var headerBytes = header.AsBytes();
-            header.Serializer = serializer;
             header.StartsAt = preHeaderPosition + headerBytes.Length;
             header.EndsAt = header.StartsAt + header.OverallLength;
             stream.Seek(header.EndsAt, SeekOrigin.Begin);
@@ -116,6 +118,7 @@ namespace TinyIndex
         public DatabaseBuilder AddArray<T>(
             IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements)
+            where T : notnull
         {
             return AddArray(serializer, elements, x => x, null);
         }
@@ -124,6 +127,7 @@ namespace TinyIndex
             IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> keySelector)
+            where T : notnull
         {
             return AddArray(serializer, elements, keySelector, Comparer<TKey>.Default);
         }
@@ -132,6 +136,7 @@ namespace TinyIndex
             IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             IComparer<T> comparer)
+            where T : notnull
         {
             return AddArray(serializer, elements, x => x, comparer);
         }
@@ -140,11 +145,13 @@ namespace TinyIndex
             IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> keySelector,
-            IComparer<TKey> comparer);
+            IComparer<TKey>? comparer)
+            where T : notnull;
 
         public DatabaseBuilder AddIndirectArray<T>(
             ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements)
+            where T : notnull
         {
             return AddIndirectArray(serializer, elements, x => x, null);
         }
@@ -153,6 +160,7 @@ namespace TinyIndex
             ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             IComparer<T> comparer)
+            where T : notnull
         {
             return AddIndirectArray(serializer, elements, x => x, comparer);
         }
@@ -161,6 +169,7 @@ namespace TinyIndex
             ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> keySelector)
+            where T : notnull
         {
             return AddIndirectArray(serializer, elements, keySelector, Comparer<TKey>.Default);
         }
@@ -168,7 +177,8 @@ namespace TinyIndex
         public abstract DatabaseBuilder AddIndirectArray<T, TKey>(ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> selector,
-            IComparer<TKey> comparer);
+            IComparer<TKey>? comparer)
+            where T : notnull;
 
         internal abstract Database Finish();
 
@@ -184,19 +194,20 @@ namespace TinyIndex
         private readonly Guid versionCheck;
         private byte[] buffer;
         private readonly List<ArrayHeader> headers;
-        private Stream stream;
-        private Database db;
+        private readonly Stream stream;
+        private readonly Database db;
 
-        public override DatabaseBuilder AddIndirectArray<T, TKey>(ISerializer<T> serializer,
+        public override DatabaseBuilder AddIndirectArray<T, TKey>(
+            ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> selector,
-            IComparer<TKey> comparer)
+            IComparer<TKey>? comparer)
         {
             try
             {
                 var headerPosition = stream.Position;
                 // write a dummy header
-                var dummyHeaderBytes = new ArrayHeader().AsBytes();
+                var dummyHeaderBytes = new ArrayHeader(serializer).AsBytes();
                 stream.Write(dummyHeaderBytes);
 
                 var pointersArrayOffsetPosition = stream.Position;
@@ -227,14 +238,13 @@ namespace TinyIndex
 
                 var pastEndPosition = stream.Position;
                 stream.Seek(headerPosition, SeekOrigin.Begin);
-                var arrayHeader = new ArrayHeader
+                var arrayHeader = new ArrayHeader(serializer)
                 {
                     OverallLength = pastEndPosition - pointersArrayOffsetPosition,
                     RecordCount = elementCount,
                     StartsAt = pointersArrayOffsetPosition,
                     EndsAt = pastEndPosition,
-                    Type = 2,
-                    Serializer = serializer
+                    Type = 2
                 };
                 stream.Write(arrayHeader.AsBytes());
                 stream.Write(BitConverter.GetBytes(pointerArrayPosition - pointersArrayOffsetPosition));
@@ -281,13 +291,13 @@ namespace TinyIndex
             IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> selector,
-            IComparer<TKey> comparer)
+            IComparer<TKey>? comparer)
         {
             try
             {
                 var headerPosition = stream.Position;
                 // write a dummy header
-                var dummyHeaderBytes = new ArrayHeader().AsBytes();
+                var dummyHeaderBytes = new ArrayHeader(serializer).AsBytes();
                 stream.Write(dummyHeaderBytes);
                 var elementLength = serializer.ElementSize;
                 Utility.EnsureArrayOfMinimalSize(ref buffer, elementLength);
@@ -304,14 +314,13 @@ namespace TinyIndex
 
                 var pastEndPosition = stream.Position;
                 stream.Seek(headerPosition, SeekOrigin.Begin);
-                var arrayHeader = new ArrayHeader
+                var arrayHeader = new ArrayHeader(serializer)
                 {
                     OverallLength = elementLength * elementCount,
                     RecordCount = elementCount,
                     StartsAt = headerPosition + dummyHeaderBytes.Length,
                     EndsAt = pastEndPosition,
-                    Type = 1,
-                    Serializer = serializer
+                    Type = 1
                 };
                 stream.Write(arrayHeader.AsBytes());
                 stream.Seek(pastEndPosition, SeekOrigin.Begin);
@@ -360,7 +369,7 @@ namespace TinyIndex
         public override DatabaseBuilder AddArray<T, TKey>(IConstSizeSerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> selector,
-            IComparer<TKey> comparer)
+            IComparer<TKey>? comparer)
         {
             builder.AddArray(serializer);
             return this;
@@ -369,7 +378,7 @@ namespace TinyIndex
         public override DatabaseBuilder AddIndirectArray<T, TKey>(ISerializer<T> serializer,
             Func<Database, IEnumerable<T>> elements,
             Func<T, TKey> selector,
-            IComparer<TKey> comparer)
+            IComparer<TKey>? comparer)
         {
             builder.AddIndirectArray(serializer);
             return this;

@@ -3,10 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using NUnit.Framework;
-using TinyIndex;
-using TinyIndex.Tests;
 
 namespace TinyIndex.Tests
 {
@@ -119,7 +116,7 @@ namespace TinyIndex.Tests
 
             list.Sort();
             var database = Database.CreateOrOpen(path, Guid.Empty)
-                .AddIndirectArray(Serializer.ForStringAsUTF8(), db => list, x => x)
+                .AddIndirectArray(Serializer.ForStringAsUtf8(), db => list, x => x)
                 .Build();
             using (database)
             {
@@ -190,7 +187,7 @@ namespace TinyIndex.Tests
 
             list.Sort();
             var database = Database.CreateOrOpen(path, Guid.Empty)
-                .AddIndirectArray(Serializer.ForStringAsUTF8(), db => list, x => x)
+                .AddIndirectArray(Serializer.ForStringAsUtf8(), db => list, x => x)
                 .AddIndirectArray(Serializer.ForInt(), db => db.Get<string>(0).LinearScan().Select(x => int.Parse(x)))
                 .Build();
             using (database)
@@ -297,14 +294,14 @@ namespace TinyIndex.Tests
 
     public class CompoundType : IEquatable<CompoundType>
     {
-        public bool Equals(CompoundType other)
+        public bool Equals(CompoundType? other)
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
             return A == other.A && string.Equals(B, other.B) && C == other.C;
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
@@ -335,7 +332,7 @@ namespace TinyIndex.Tests
 
         public int A { get; set; }
 
-        public string B { get; set; }
+        public string? B { get; set; }
 
         public long C { get; set; }
     }
@@ -370,7 +367,7 @@ namespace TinyIndex.Tests
             using (var binaryWriter = new BinaryWriter(memoryStream))
             {
                 binaryWriter.Write(element.A);
-                binaryWriter.WritePaddedUtf8String(32, element.B);
+                binaryWriter.WritePaddedUtf8String(32, element.B!);
                 binaryWriter.Write(element.C);
             }
 

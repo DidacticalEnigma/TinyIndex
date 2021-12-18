@@ -127,10 +127,10 @@ namespace TinyIndex
                 var recordKey = selector(record);
                 switch (comparer.Compare(recordKey, lookupKey))
                 {
-                    case var x when x < 0:
+                    case < 0:
                         left = m + 1;
                         break;
-                    case var x when x > 0:
+                    case > 0:
                         right = m - 1;
                         break;
                     default:

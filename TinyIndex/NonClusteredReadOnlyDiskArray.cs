@@ -4,12 +4,13 @@ using System.Collections.Generic;
 namespace TinyIndex
 {
     public class NonClusteredReadOnlyDiskArray<T> : IReadOnlyDiskArray<T>
+        where T : notnull
     {
-        private ArrayHeader header;
-        private ISerializer<T> serializer;
-        private RandomAccessFile file;
-        private long pointersStartsAt;
-        private ICache<long, T> cache;
+        private readonly ArrayHeader header;
+        private readonly ISerializer<T> serializer;
+        private readonly RandomAccessFile file;
+        private readonly long pointersStartsAt;
+        private readonly ICache<long, T> cache;
 
         private T ReadRecordAtOffset(long offset, ref byte[] buffer, out int length)
         {
@@ -111,7 +112,7 @@ namespace TinyIndex
 
         private long DataStartOffset => header.StartsAt + sizeof(long);
 
-        internal NonClusteredReadOnlyDiskArray(ArrayHeader header, RandomAccessFile file, ISerializer<T> serializer, ICache<long, T> cache = null)
+        internal NonClusteredReadOnlyDiskArray(ArrayHeader header, RandomAccessFile file, ISerializer<T> serializer, ICache<long, T>? cache = null)
         {
             this.header = header;
             this.file = file;

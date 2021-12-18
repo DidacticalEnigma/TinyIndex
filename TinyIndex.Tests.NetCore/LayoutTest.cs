@@ -14,7 +14,7 @@ namespace TinyIndex.Tests
     {
         private static readonly ISerializer<ComplexComposite> serializer = Serializer.ForComposite()
             .With(Serializer.ForInt())
-            .With(Serializer.ForStringAsUTF8())
+            .With(Serializer.ForStringAsUtf8())
             .With(Serializer.ForLong())
             .With(Serializer.ForArray(Serializer.ForEnum<FileShare>()))
             .Create()
@@ -27,9 +27,9 @@ namespace TinyIndex.Tests
             }, obj => new object[]
             {
                 obj.A,
-                obj.B,
+                obj.B!,
                 obj.C,
-                obj.D
+                obj.D!
             });
 
         [Test]

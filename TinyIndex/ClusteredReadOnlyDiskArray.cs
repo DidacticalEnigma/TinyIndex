@@ -4,6 +4,7 @@ using System.Collections.Generic;
 namespace TinyIndex
 {
     public class ClusteredReadOnlyDiskArray<T> : IReadOnlyDiskArray<T>
+        where T : notnull
     {
         private readonly ArrayHeader header;
         private readonly RandomAccessFile file;
@@ -107,7 +108,7 @@ namespace TinyIndex
 
         public long Count => header.RecordCount;
 
-        internal ClusteredReadOnlyDiskArray(ArrayHeader header, RandomAccessFile file, ISerializer<T> serializer, ICache<long, T> cache = null)
+        internal ClusteredReadOnlyDiskArray(ArrayHeader header, RandomAccessFile file, ISerializer<T> serializer, ICache<long, T>? cache = null)
         {
             this.header = header;
             this.file = file;
