@@ -108,7 +108,7 @@ namespace TinyIndex.Tests
         }
 
         [Test]
-        public void Binary()
+        public void Json()
         {
             var original = new ComplexComposite()
             {
@@ -118,11 +118,11 @@ namespace TinyIndex.Tests
                 D = new FileShare[] { FileShare.Delete, FileShare.Read }
             };
             // For the purposes of this test assume a buffer large enough
-            var binarySerializer = Serializer.DotNetBinary<ComplexComposite>(new BinaryFormatter());
+            var jsonSerializer = Serializer.SystemTextJson<ComplexComposite>();
             var buffer = new byte[16384];
-            binarySerializer.TrySerialize(original, buffer.AsSpan(), out var actualSize);
+            jsonSerializer.TrySerialize(original, buffer.AsSpan(), out var actualSize);
             Assert.IsTrue(actualSize < buffer.Length);
-            var resurrected = binarySerializer.Deserialize(buffer.AsSpan().Slice(0, actualSize));
+            var resurrected = jsonSerializer.Deserialize(buffer.AsSpan().Slice(0, actualSize));
             Assert.AreEqual(original.A, resurrected.A);
             Assert.AreEqual(original.B, resurrected.B);
             Assert.AreEqual(original.C, resurrected.C);

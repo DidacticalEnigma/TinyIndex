@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Text.Json;
 
 namespace TinyIndex
 {
@@ -495,16 +496,13 @@ namespace TinyIndex
         }
 
 
-        private class DotNetBinarySerializer<T> : ISerializer<T>
+        private class SystemTextJsonSerializer<T> : ISerializer<T>
         {
-            private readonly IFormatter formatter;
+            private readonly JsonSerializerOptions? options;
 
             public T Deserialize(ReadOnlySpan<byte> input)
             {
-                using (var memoryStream = new MemoryStream(input.ToArray()))
-                {
-                    return (T)formatter.Deserialize(memoryStream);
-                }
+                return JsonSerializer.Deserialize<T>(input) ?? throw new InvalidDataException();
             }
 
             public bool TrySerialize(
@@ -516,7 +514,7 @@ namespace TinyIndex
                 {
                     try
                     {
-                        formatter.Serialize(memoryStream, element);
+                        JsonSerializer.Serialize(memoryStream, element, options);
                         var s = (int)memoryStream.Position;
                         if (memoryStream.GetBuffer().AsSpan().Slice(0, s).TryCopyTo(output))
                         {
@@ -535,18 +533,15 @@ namespace TinyIndex
                 }
             }
 
-            public DotNetBinarySerializer(IFormatter formatter)
+            public SystemTextJsonSerializer(JsonSerializerOptions? options = null)
             {
-                this.formatter = formatter;
+                this.options = options;
             }
         }
-
-        // uses the .NET built-in serialization API
-        // all caveats described in https://docs.microsoft.com/en-us/dotnet/standard/serialization/binary-serialization
-        // apply, in particular the warning to not use this for deserializing untrusted data
-        public static ISerializer<T> DotNetBinary<T>(IFormatter formatter)
+        
+        public static ISerializer<T> SystemTextJson<T>()
         {
-            return new DotNetBinarySerializer<T>(formatter);
+            return new SystemTextJsonSerializer<T>();
         }
 
         public static ISerializer<KeyValuePair<TKey, TValue>> ForKeyValuePair<TKey, TValue>(ISerializer<TKey> keySerializer, ISerializer<TValue> valueSerializer)
