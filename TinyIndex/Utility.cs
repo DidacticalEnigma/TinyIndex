@@ -1,11 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace TinyIndex
 {
     internal static class Utility
     {
+        public static async Task ReadFullyAsync(this Stream stream, byte[] buffer, int offset, int count, CancellationToken cancellationToken = default)
+        {
+            int numBytesToRead = count;
+            int numBytesRead = 0;
+            do
+            {
+                int n = await stream.ReadAsync(buffer, numBytesRead + offset, numBytesToRead, cancellationToken);
+                if (n == 0)
+                    throw new EndOfStreamException();
+                numBytesRead += n;
+                numBytesToRead -= n;
+            } while (numBytesToRead > 0);
+        }
+        
+        public static async Task ReadFullyAsync(this Stream stream, byte[] buffer, CancellationToken cancellationToken = default)
+        {
+            await ReadFullyAsync(stream, buffer, 0, buffer.Length, cancellationToken);
+        }
+        
         public static void ReadFully(this Stream stream, byte[] buffer, int offset, int count)
         {
             int numBytesToRead = count;

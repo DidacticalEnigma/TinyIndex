@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace TinyIndex
 {
-    public class NonClusteredReadOnlyDiskArray<T> : IReadOnlyDiskArray<T>
+    public class NonClusteredReadOnlyDiskArray<T> : ISyncReadOnlyDiskArray<T>
         where T : notnull
     {
         private readonly ArrayHeader header;

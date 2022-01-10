@@ -1,16 +1,37 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace TinyIndex
 {
-    internal class RandomAccessFile : IDisposable
+    internal class RandomAccessFile : IDisposable, IAsyncDisposable
     {
+        public async Task ReadAtAsync(long offset, byte[] bytes, int start, int length)
+        {
+            try
+            {
+                await locker.WaitAsync();
+                stream.Seek(offset, SeekOrigin.Begin);
+                await stream.ReadFullyAsync(bytes, start, length);
+            }
+            finally
+            {
+                locker.Release();
+            }
+        }
+        
         public void ReadAt(long offset, byte[] bytes, int start, int length)
         {
-            lock (stream)
+            try
             {
+                locker.Wait();
                 stream.Seek(offset, SeekOrigin.Begin);
                 stream.ReadFully(bytes, start, length);
+            }
+            finally
+            {
+                locker.Release();
             }
         }
 
@@ -23,12 +44,19 @@ namespace TinyIndex
 
         internal void Reopen()
         {
-            lock (stream)
+            try
             {
+                locker.Wait();
                 stream.Dispose();
                 stream = streamFactory();
             }
+            finally
+            {
+                locker.Release();
+            }
         }
+
+        private readonly SemaphoreSlim locker = new SemaphoreSlim(1, 1);
 
         private Stream stream;
 
@@ -42,9 +70,27 @@ namespace TinyIndex
 
         public void Dispose()
         {
-            lock (stream)
+            try
             {
+                locker.Wait();
                 stream.Dispose();
+            }
+            finally
+            {
+                locker.Release();
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try
+            {
+                await locker.WaitAsync();
+                await stream.DisposeAsync();
+            }
+            finally
+            {
+                locker.Release();
             }
         }
     }

@@ -18,7 +18,7 @@ namespace TinyIndex
         private readonly IReadOnlyList<ArrayHeader> headers;
         private readonly RandomAccessFile file;
 
-        public IReadOnlyDiskArray<T> Get<T>(int collectionNumber, ICache<long, T>? cache = null)
+        public ISyncReadOnlyDiskArray<T> Get<T>(int collectionNumber, ICache<long, T>? cache = null)
             where T : notnull
         {
             var header = headers[collectionNumber];
