@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace TinyIndex;
 
@@ -17,5 +18,19 @@ public static class SyncReadOnlyDiskArrayExtensions
         where TKey : IComparable<TKey>
     {
         return @this.EqualRange(lookupKey, selector, Comparer<TKey>.Default);
+    }
+    
+    public static Task<(T element, long id)> BinarySearchAsync<T, TKey>(this IAsyncReadOnlyDiskArray<T> @this, TKey lookupKey, Func<T, TKey> selector)
+        where T : notnull
+        where TKey : IComparable<TKey>
+    {
+        return @this.BinarySearchAsync(lookupKey, selector, Comparer<TKey>.Default);
+    }
+
+    public static Task<(long idStart, long idEndExclusive)> EqualRangeAsync<T, TKey>(this IAsyncReadOnlyDiskArray<T> @this, TKey lookupKey, Func<T, TKey> selector)
+        where T : notnull
+        where TKey : IComparable<TKey>
+    {
+        return @this.EqualRangeAsync(lookupKey, selector, Comparer<TKey>.Default);
     }
 }

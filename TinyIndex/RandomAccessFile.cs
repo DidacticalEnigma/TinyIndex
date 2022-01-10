@@ -7,13 +7,13 @@ namespace TinyIndex
 {
     internal class RandomAccessFile : IDisposable, IAsyncDisposable
     {
-        public async Task ReadAtAsync(long offset, byte[] bytes, int start, int length)
+        public async Task ReadAtAsync(long offset, byte[] bytes, int start, int length, CancellationToken cancellationToken = default)
         {
             try
             {
-                await locker.WaitAsync();
+                await locker.WaitAsync(cancellationToken);
                 stream.Seek(offset, SeekOrigin.Begin);
-                await stream.ReadFullyAsync(bytes, start, length);
+                await stream.ReadFullyAsync(bytes, start, length, cancellationToken: cancellationToken);
             }
             finally
             {

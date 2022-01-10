@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace TinyIndex
 {
@@ -24,5 +26,8 @@ namespace TinyIndex
         /// The requested value.
         /// </returns>
         TValue Get(TKey key, Func<TValue> valueGenerator);
+
+        Task<TValue> GetAsync(TKey key, Func<Task<TValue>> valueGenerator,
+            CancellationToken cancellationToken = default);
     }
 }

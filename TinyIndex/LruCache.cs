@@ -1,5 +1,8 @@
 ﻿// https://stackoverflow.com/a/43266537
 
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace TinyIndex
 {
     using System;
@@ -21,6 +24,8 @@ namespace TinyIndex
         where TKey : notnull
         where TValue : notnull
     {
+        private SemaphoreSlim locker = new SemaphoreSlim(1, 1);
+        
         private readonly Dictionary<TKey, LinkedListNode<LruCacheItem>> cacheMap =
             new Dictionary<TKey, LinkedListNode<LruCacheItem>>();
 
@@ -66,8 +71,9 @@ namespace TinyIndex
         /// </returns>
         public TValue Get(TKey key, Func<TValue> valueGenerator)
         {
-            lock (this.cacheMap)
+            try
             {
+                this.locker.Wait();
                 TValue value;
                 if (this.cacheMap.TryGetValue(key, out var node))
                 {
@@ -90,6 +96,44 @@ namespace TinyIndex
                 }
 
                 return value;
+            }
+            finally
+            {
+                this.locker.Release();
+            }
+        }
+        
+        public async Task<TValue> GetAsync(TKey key, Func<Task<TValue>> valueGenerator, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await this.locker.WaitAsync(cancellationToken);
+                TValue value;
+                if (this.cacheMap.TryGetValue(key, out var node))
+                {
+                    value = node.Value.Value;
+                    this.lruList.Remove(node);
+                    this.lruList.AddLast(node);
+                }
+                else
+                {
+                    value = await valueGenerator();
+                    if (this.cacheMap.Count >= this.Capacity)
+                    {
+                        this.RemoveFirst();
+                    }
+
+                    LruCacheItem cacheItem = new LruCacheItem(key, value);
+                    node = new LinkedListNode<LruCacheItem>(cacheItem);
+                    this.lruList.AddLast(node);
+                    this.cacheMap.Add(key, node);
+                }
+
+                return value;
+            }
+            finally
+            {
+                this.locker.Release();
             }
         }
 
